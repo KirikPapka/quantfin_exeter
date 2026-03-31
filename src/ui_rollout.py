@@ -19,6 +19,7 @@ def rollout_episode(
 ) -> Tuple[pd.DataFrame, dict[str, float]]:
     obs, _ = env.reset(seed=seed)
     arrival = float(env._arrival)  # noqa: SLF001
+    physical = bool(getattr(env, "_physical", False))
     rows: List[dict[str, float]] = []
     step = 0
     total_cost = 0.0
@@ -28,7 +29,7 @@ def rollout_episode(
         action, _ = agent.predict(obs, deterministic=deterministic)
         obs, reward, term, trunc, info = env.step(action)
         terminated = bool(term or trunc)
-        v = float(info.get("v_t", 0.0))
+        v = float(info.get("v_shares", info.get("v_t", 0.0)))
         px = float(info.get("exec_price", arrival))
         total_cost += v * (px - arrival)
         rows.append(
@@ -48,9 +49,14 @@ def rollout_episode(
     if x_final > 0.01 * env.X_0:
         rel = max(min(env._t, env.T) - 1, 0)  # noqa: SLF001
         last_px = float(env.price_data.iloc[env._row_start + rel]["Close"])  # noqa: SLF001
-        total_cost += x_final * (last_px - arrival)
+        x_out = (x_final / max(env.X_0, 1e-12)) * float(env._Q_shares) if physical else x_final
+        total_cost += x_out * (last_px - arrival)
     completed = x_final <= 0.01 * env.X_0
-    is_bps = ((total_cost / env.X_0) / arrival * 1e4) if arrival else 0.0
+    if physical:
+        denom = float(getattr(env, "_notional_scale", env.X_0 * arrival))
+        is_bps = (total_cost / max(denom, 1e-12)) * 1e4 if arrival else 0.0
+    else:
+        is_bps = ((total_cost / env.X_0) / arrival * 1e4) if arrival else 0.0
     return pd.DataFrame(rows), {
         "is_bps": float(is_bps),
         "completed": bool(completed),

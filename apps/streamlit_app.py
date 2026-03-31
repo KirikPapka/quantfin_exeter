@@ -22,12 +22,12 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
 
-from src.benchmarks import compare_all
+from src.benchmarks import compare_all, execution_summary_row
 from src.data_pipeline import default_data_root, load_split
 from src.llm_explainer import explain_execution
 from src.regime_detector import RegimeDetector
-from src.rl_agent import evaluate_agent
-from src.trading_env import OptimalExecutionEnv
+from src.rl_agent import evaluate_agent, format_rl_eval_report
+from src.trading_env import OptimalExecutionEnv, physical_institutional_kwargs
 from src.ui_rollout import rollout_episode
 from src.utils import regime_display_name
 
@@ -69,10 +69,14 @@ ticker = sb.selectbox("Ticker", ["SPY", "AAPL"])
 split_viz = sb.selectbox("Chart split", ["train", "val", "test"])
 split_eval = sb.selectbox("Eval split", ["test", "val", "train"], index=0)
 use_bbo = sb.checkbox("Merge BBO daily (needs `data/processed/bbo_daily.parquet`)", value=True)
+use_news = sb.checkbox(
+    "Merge Finnhub news counts (`data/processed/news_daily_{ticker}.parquet`)",
+    value=True,
+)
 
 try:
-    df_viz = load_split(split_viz, ticker=ticker, use_bbo=use_bbo)
-    df_eval = load_split(split_eval, ticker=ticker, use_bbo=use_bbo)
+    df_viz = load_split(split_viz, ticker=ticker, use_bbo=use_bbo, use_news=use_news)
+    df_eval = load_split(split_eval, ticker=ticker, use_bbo=use_bbo, use_news=use_news)
 except FileNotFoundError as e:
     st.error(str(e))
     st.stop()
@@ -80,6 +84,46 @@ except FileNotFoundError as e:
 n_reg = sb.slider("HMM states", 2, 3, 2)
 T = sb.number_input("Horizon T", 3, 30, 10)
 ep_seed = sb.number_input("Episode seed", 0, 999999, 42)
+order_notional = sb.number_input(
+    "Order notional (USD)",
+    min_value=0.0,
+    value=0.0,
+    step=1_000_000.0,
+    format="%.0f",
+    help="0 = legacy abstract inventory (no participation impact in benchmarks). "
+    "e.g. 10e9 for $10B — uses bar volume + Amihud to scale price impact.",
+)
+tmax = max(int(T) - 1, 0)
+order_start_bar = sb.number_input(
+    "First execution bar (in horizon)",
+    min_value=0,
+    max_value=tmax,
+    value=0,
+    help="0 = can trade from first bar; k = wait k bars then execute. Arrival = prior bar close.",
+)
+def _exec_kw() -> dict:
+    return {
+        "T": int(T),
+        "X_0": 1.0,
+        "eta": 0.01,
+        "gamma": 0.001,
+        "lam": 0.5,
+        "order_notional_usd": float(order_notional),
+        "order_start_bar": int(order_start_bar),
+    }
+
+
+def _env_physical_kw() -> dict:
+    if order_notional and order_notional > 0:
+        kw = {
+            "order_notional_usd": float(order_notional),
+            "order_start_bar": int(order_start_bar),
+        }
+        kw.update(physical_institutional_kwargs(float(order_notional)))
+        return kw
+    return {}
+
+
 mods = _models()
 pol = sb.radio(
     "Policy",
@@ -163,7 +207,12 @@ with tabs[1]:
     if st.button("Run episode", type="primary", key="ep"):
         with st.spinner("Rollout…"):
             try:
-                env = OptimalExecutionEnv(df_eval, T=int(T), seed=int(ep_seed))
+                env = OptimalExecutionEnv(
+                    df_eval,
+                    T=int(T),
+                    seed=int(ep_seed),
+                    **_env_physical_kw(),
+                )
                 agent = _load_ppo(ppo_p) if ppo_p else RandomAgent(int(ep_seed))
                 tr, sm = rollout_episode(env, agent, seed=int(ep_seed), deterministic=True)
                 st.session_state.traj = tr
@@ -192,17 +241,34 @@ with tabs[2]:
     if st.button("Run benchmarks", type="primary", key="bn"):
         with st.spinner("Evaluating…"):
             try:
-                env = OptimalExecutionEnv(df_eval, T=int(T), seed=42)
+                env = OptimalExecutionEnv(df_eval, T=int(T), seed=42, **_env_physical_kw())
                 ag = _load_ppo(ppo_p) if ppo_p else RandomAgent(42)
-                rl = evaluate_agent(ag, env, n_episodes=n_ep, seed=42)
+                bp = _exec_kw()
+                rl = evaluate_agent(ag, env, n_episodes=n_ep, seed=42, bench_params=bp)
                 st.session_state.btab = compare_all(
                     rl,
                     df_eval,
-                    params={"T": int(T), "seed": 42, "n_starts": min(50, n_ep)},
+                    params={
+                        **bp,
+                        "seed": 42,
+                        "n_starts": min(50, n_ep),
+                    },
                 )
+                st.session_state.bsum = execution_summary_row(df_eval, _exec_kw())
+                st.session_state.rl_eval_txt = format_rl_eval_report(rl)
             except Exception as e:
                 st.error(str(e))
     if st.session_state.get("btab") is not None:
+        if st.session_state.get("bsum"):
+            st.caption(
+                f"Execution context: **{st.session_state.bsum['mode']}** · "
+                f"arrival ≈ ${st.session_state.bsum['arrival_price_usd']:.4f} · "
+                f"shares ≈ {st.session_state.bsum['shares_approx']:,.0f} · "
+                f"~participation (1st bar vs vol) ≈ {st.session_state.bsum['approx_participation_first_bar']:.2%}"
+            )
+        if st.session_state.get("rl_eval_txt"):
+            with st.expander("RL path-aligned diagnostics (same windows as policy)", expanded=True):
+                st.code(st.session_state.rl_eval_txt, language=None)
         st.dataframe(st.session_state.btab, hide_index=True, use_container_width=True)
 
 with tabs[3]:
