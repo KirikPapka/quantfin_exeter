@@ -1,0 +1,10 @@
+{
+  "prompt_hash": "04a387ee4796067e",
+  "model": "offline-template",
+  "explanation": "In the calm regime (id 0), the desk executed 12.0% of the remaining book this interval with ~3.8 bps estimated cost versus TWAP ~5.0 bps and Almgren\u2013Chriss ~4.6 bps. Daily volatility is about 1.20% with Amihud liquidity 0.0000. The pace balances market impact against inventory risk with 72.0% still to work.",
+  "input": {
+    "regime": 0,
+    "action_taken": 0.12,
+    "execution_cost_bps": 3.8
+  }
+}

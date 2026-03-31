@@ -1,0 +1,10 @@
+{
+  "prompt_hash": "2d3949b0341f6eb1",
+  "model": "offline-template",
+  "explanation": "In the elevated volatility regime (id 1), the desk executed 38.0% of the remaining book this interval with ~7.2 bps estimated cost versus TWAP ~5.8 bps and Almgren\u2013Chriss ~6.1 bps. Daily volatility is about 2.60% with Amihud liquidity 0.0000. The pace balances market impact against inventory risk with 45.0% still to work.",
+  "input": {
+    "regime": 1,
+    "action_taken": 0.38,
+    "execution_cost_bps": 7.2
+  }
+}
