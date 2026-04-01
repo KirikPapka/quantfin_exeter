@@ -48,9 +48,31 @@ def test_physical_institutional_kwargs_off_when_no_notional():
 
 def test_physical_institutional_defaults():
     d = physical_institutional_kwargs(1e9)
-    assert d["max_inventory_fraction_per_step"] == 0.33
+    assert d["max_inventory_fraction_per_step"] == 0.25
     assert d["is_reward_scale"] == 1.28
-    assert d["twap_slice_bonus_coef"] == 0.30
+    assert d["twap_slice_bonus_coef"] == 0.60
+    assert d["terminal_inventory_penalty"] == 5.0
+
+
+def test_eval_is_reward_coef_terminal_bonus():
+    env = OptimalExecutionEnv(
+        _panel(50),
+        T=5,
+        resample=False,
+        seed=1,
+        order_notional_usd=1e6,
+        eval_is_reward_coef=1.0,
+        twap_slice_bonus_coef=0.0,
+        is_reward_scale=1.0,
+    )
+    obs, _ = env.reset(seed=0)
+    total_r = 0.0
+    for _ in range(20):
+        obs, r, term, trunc, _ = env.step(np.array([0.5], dtype=np.float32))
+        total_r += float(r)
+        if term or trunc:
+            break
+    assert np.isfinite(total_r)
 
 
 def test_physical_twap_slice_bonus_runs():

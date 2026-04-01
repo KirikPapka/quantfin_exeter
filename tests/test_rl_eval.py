@@ -47,5 +47,8 @@ def test_evaluate_agent_path_aligned_keys():
     assert "pct_beat_twap_is" in st
     assert 0.0 <= st["pct_beat_twap_is"] <= 1.0
     assert "mean_episode_return" in st
+    assert "is_gap_sharpe" in st
+    assert "ci95_rl_minus_twap_bps" in st
     txt = format_rl_eval_report(st)
     assert "RL_minus_TWAP" in txt
+    assert "IS-gap Sharpe" in txt

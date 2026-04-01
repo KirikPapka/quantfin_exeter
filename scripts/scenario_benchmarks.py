@@ -111,7 +111,31 @@ def main() -> None:
         "--twap-slice-bonus",
         type=float,
         default=None,
-        help="Override TWAP slice bonus coef (default 0.30 when notional>0).",
+        help="Override TWAP slice bonus coef (default 0.60 when notional>0).",
+    )
+    ap.add_argument(
+        "--residual-bound",
+        type=float,
+        default=None,
+        help="TWAP-residual action: a=0.5 is TWAP, deviation bounded (must match training).",
+    )
+    ap.add_argument(
+        "--relative-is-scale",
+        type=float,
+        default=None,
+        help="Relative-IS reward scale (must match training; 0 = disabled).",
+    )
+    ap.add_argument(
+        "--terminal-penalty",
+        type=float,
+        default=None,
+        help="Terminal inventory penalty (must match training).",
+    )
+    ap.add_argument(
+        "--lam-risk",
+        type=float,
+        default=None,
+        help="Inventory risk weight (must match training).",
     )
     args = ap.parse_args()
 
@@ -132,8 +156,16 @@ def main() -> None:
                 max_inventory_fraction_per_step=args.max_inventory_frac_per_step,
                 is_reward_scale=args.is_reward_scale,
                 twap_slice_bonus_coef=args.twap_slice_bonus,
+                terminal_inventory_penalty=args.terminal_penalty,
+                lam=args.lam_risk,
+                residual_bound=args.residual_bound,
+                relative_is_scale=args.relative_is_scale,
             )
         )
+    if args.residual_bound is not None and on is None:
+        env_kw["residual_bound"] = float(args.residual_bound)
+    if args.relative_is_scale is not None and on is None:
+        env_kw["relative_is_scale"] = float(args.relative_is_scale)
 
     for kind in ("flat", "up", "down"):
         df = synthetic_panel(kind, n=int(args.bars), step=float(args.step))

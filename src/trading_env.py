@@ -37,6 +37,9 @@ class OptimalExecutionEnv(gym.Env):
         max_inventory_fraction_per_step: Optional[float] = None,
         is_reward_scale: float = 1.0,
         twap_slice_bonus_coef: float = 0.0,
+        eval_is_reward_coef: float = 0.0,
+        residual_bound: Optional[float] = None,
+        relative_is_scale: float = 0.0,
         seed: Optional[int] = None,
     ) -> None:
         super().__init__()
@@ -65,6 +68,13 @@ class OptimalExecutionEnv(gym.Env):
         self.twap_slice_bonus_coef = float(twap_slice_bonus_coef)
         if self.twap_slice_bonus_coef < 0:
             raise ValueError("twap_slice_bonus_coef must be non-negative.")
+        self.eval_is_reward_coef = float(eval_is_reward_coef)
+        if self.eval_is_reward_coef < 0:
+            raise ValueError("eval_is_reward_coef must be non-negative.")
+        self._residual_bound = float(residual_bound) if residual_bound is not None else None
+        if self._residual_bound is not None and self._residual_bound <= 0:
+            raise ValueError("residual_bound must be positive.")
+        self.relative_is_scale = float(relative_is_scale)
 
         required = {"Close", "amihud_illiquidity", "regime"}
         missing = required - set(price_data.columns)
@@ -106,6 +116,7 @@ class OptimalExecutionEnv(gym.Env):
         self._arrival = 1.0
         self._Q_shares = 1.0
         self._notional_scale = 1.0
+        self._ep_is_num = 0.0
         if seed is not None:
             super().reset(seed=seed)
 
@@ -162,6 +173,7 @@ class OptimalExecutionEnv(gym.Env):
             self._arrival = self._S0
             self._Q_shares = 1.0
             self._notional_scale = 1.0
+        self._ep_is_num = 0.0
         return self._obs(), {}
 
     def step(
@@ -185,6 +197,7 @@ class OptimalExecutionEnv(gym.Env):
                 reward -= self.terminal_inventory_penalty * (self._X / self.X_0) ** 2
             elif completed:
                 reward += self.completion_bonus
+            reward = self._maybe_eval_is_terminal_bonus(reward, terminated, completed)
             info = {
                 "execution_cost": 0.0,
                 "inventory_risk": float(inv_risk),
@@ -197,7 +210,20 @@ class OptimalExecutionEnv(gym.Env):
             }
             return self._obs(), float(reward), terminated, False, info
 
-        raw_v = min(a * X_before, X_before)
+        residual_delta = 0.0
+        if self._residual_bound is not None:
+            T_eff_r = max(self.T - self._t0, 1)
+            bars_left = max(T_eff_r - (self._t - self._t0), 1)
+            twap_frac_of_x0 = (X_before / max(self.X_0, 1e-12)) / bars_left
+            residual_delta = (a - 0.5) * 2.0 * self._residual_bound
+            target_frac = np.clip(
+                twap_frac_of_x0 + residual_delta * (X_before / max(self.X_0, 1e-12)),
+                0.0,
+                X_before / max(self.X_0, 1e-12),
+            )
+            raw_v = float(target_frac) * self.X_0
+        else:
+            raw_v = min(a * X_before, X_before)
         if self._max_step_frac is not None:
             v_t = min(raw_v, self._max_step_frac * self.X_0)
         else:
@@ -209,20 +235,32 @@ class OptimalExecutionEnv(gym.Env):
         if self._physical:
             v_shares = (v_t / max(self.X_0, 1e-12)) * self._Q_shares
             exec_price = sell_effective_close(base_S, v_shares, row, self._impact_hyper)
+            self._ep_is_num += float(v_shares * (exec_price - self._arrival))
             dollar_cost = v_shares * (self._arrival - exec_price)
             inv_w = rem**1.5
-            reward = (
-                -((dollar_cost / self._notional_scale) * self.is_reward_scale)
-                - self.lam * inv_risk * inv_w
-            )
             exec_cost = float(dollar_cost / self._notional_scale)
             impact = float(self._arrival - exec_price)
             act_leg = (v_shares * (exec_price - self._arrival)) / self._notional_scale
+
+            T_eff = max(self.T - self._t0, 1)
+            q_twap = self._Q_shares / float(T_eff)
+            exec_ref = sell_effective_close(base_S, q_twap, row, self._impact_hyper)
+            ref_leg = (q_twap * (exec_ref - self._arrival)) / self._notional_scale
+
+            if self.relative_is_scale > 0 and v_shares > 1e-12:
+                abs_weight = 0.2
+                reward = (
+                    self.relative_is_scale * float(act_leg - ref_leg)
+                    - abs_weight * ((dollar_cost / self._notional_scale) * self.is_reward_scale)
+                    - self.lam * inv_risk * inv_w
+                )
+            else:
+                reward = (
+                    -((dollar_cost / self._notional_scale) * self.is_reward_scale)
+                    - self.lam * inv_risk * inv_w
+                )
+
             if self.twap_slice_bonus_coef > 0 and v_shares > 1e-12:
-                T_eff = max(self.T - self._t0, 1)
-                q_twap = self._Q_shares / float(T_eff)
-                exec_ref = sell_effective_close(base_S, q_twap, row, self._impact_hyper)
-                ref_leg = (q_twap * (exec_ref - self._arrival)) / self._notional_scale
                 twap_delta = float(self.twap_slice_bonus_coef * (act_leg - ref_leg))
                 reward += twap_delta
         else:
@@ -231,6 +269,7 @@ class OptimalExecutionEnv(gym.Env):
             impact = self.eta * v_t + self.gamma * (self.X_0 - X_before)
             exec_price = max(base_S - impact, 1e-12)
             v_shares = v_t
+            self._ep_is_num += float(v_t * (exec_price - self._arrival))
             is_edge = (exec_price - self._arrival) / max(self._arrival, 1e-12)
             align = self.legacy_is_align * (v_t / max(self.X_0, 1e-12)) * is_edge
             reward = -(exec_cost + self.lam * inv_risk * inv_w) + align
@@ -244,6 +283,7 @@ class OptimalExecutionEnv(gym.Env):
                 reward -= self.terminal_inventory_penalty * (self._X / self.X_0) ** 2
             else:
                 reward += self.completion_bonus
+        reward = self._maybe_eval_is_terminal_bonus(reward, terminated, completed)
         info = {
             "execution_cost": float(exec_cost),
             "inventory_risk": float(inv_risk),
@@ -253,8 +293,35 @@ class OptimalExecutionEnv(gym.Env):
             "exec_price": float(exec_price),
             "completed": completed,
             "twap_slice_bonus": float(twap_delta),
+            "residual_delta": float(residual_delta),
         }
         return self._obs(), float(reward), terminated, False, info
+
+    def _maybe_eval_is_terminal_bonus(
+        self, reward: float, terminated: bool, completed: bool
+    ) -> float:
+        """Terminal bonus aligned with ``evaluate_agent`` IS numerator (optional)."""
+        if (
+            not terminated
+            or self.eval_is_reward_coef <= 0.0
+        ):
+            return float(reward)
+        tot = float(self._ep_is_num)
+        if not completed:
+            rel = max(min(self._t, self.T) - 1, 0)
+            last_px = float(self.price_data.iloc[self._row_start + rel]["Close"])
+            x_final = self._X
+            if self._physical:
+                x_out = (x_final / max(self.X_0, 1e-12)) * float(self._Q_shares)
+            else:
+                x_out = x_final
+            tot += float(x_out * (last_px - self._arrival))
+        if self._physical:
+            frac = tot / max(float(self._notional_scale), 1e-12)
+        else:
+            frac = (tot / max(self.X_0, 1e-12)) / max(self._arrival, 1e-12)
+        bonus = self.eval_is_reward_coef * float(np.clip(frac, -0.15, 0.15))
+        return float(reward) + bonus
 
 
 def physical_institutional_kwargs(
@@ -264,6 +331,10 @@ def physical_institutional_kwargs(
     max_inventory_fraction_per_step: Optional[float] = None,
     is_reward_scale: Optional[float] = None,
     twap_slice_bonus_coef: Optional[float] = None,
+    terminal_inventory_penalty: Optional[float] = None,
+    lam: Optional[float] = None,
+    residual_bound: Optional[float] = None,
+    relative_is_scale: Optional[float] = None,
 ) -> dict[str, Any]:
     """Default knobs when training/evaluating with USD notional (participation model)."""
     on = order_notional_usd is not None and float(order_notional_usd) > 0
@@ -276,13 +347,23 @@ def physical_institutional_kwargs(
         out["max_inventory_fraction_per_step"] = (
             float(max_inventory_fraction_per_step)
             if max_inventory_fraction_per_step is not None
-            else 0.33
+            else 0.25
         )
     out["is_reward_scale"] = (
         float(is_reward_scale) if is_reward_scale is not None else 1.28
     )
-    # Slightly lower default now that obs includes explicit TWAP schedule gap.
     out["twap_slice_bonus_coef"] = (
-        float(twap_slice_bonus_coef) if twap_slice_bonus_coef is not None else 0.30
+        float(twap_slice_bonus_coef) if twap_slice_bonus_coef is not None else 0.60
     )
+    out["terminal_inventory_penalty"] = (
+        float(terminal_inventory_penalty)
+        if terminal_inventory_penalty is not None
+        else 5.0
+    )
+    if lam is not None:
+        out["lam"] = float(lam)
+    if residual_bound is not None:
+        out["residual_bound"] = float(residual_bound)
+    if relative_is_scale is not None:
+        out["relative_is_scale"] = float(relative_is_scale)
     return out

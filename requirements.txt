@@ -17,3 +17,4 @@ pyarrow==16.1.0
 streamlit==1.38.0
 python-dotenv==1.0.1
 cython==3.0.10
+d3rlpy
