@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import logging
 from pathlib import Path
 from typing import Optional
@@ -86,7 +87,15 @@ def load_split(
     data_root = data_root or default_data_root()
     path = data_root / "features" / f"features_{split}.parquet"
     if not path.exists():
-        raise FileNotFoundError(path)
+        raise FileNotFoundError(
+            errno.ENOENT,
+            (
+                "Features parquet not found. Provide `data_root=...` or set the "
+                "`CFA_DATA_ROOT` environment variable so that the following file exists: "
+                f"{path}"
+            ),
+            str(path),
+        )
     panel = load_features_parquet(path, ticker=ticker)
     if use_bbo and ticker:
         try:
