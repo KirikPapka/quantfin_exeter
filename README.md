@@ -7,6 +7,8 @@
 
 > Institutional **optimal trade execution** using **regime-aware reinforcement learning** (PPO), **classical benchmarks** (TWAP / VWAP / Almgren–Chriss / Immediate), **NASDAQ ITCH order-book imbalance**, and an **LLM governance** layer (Anthropic Claude, cached for reproducibility).
 
+**Live demo (Deployed online):** → [https://cfadeployedteam18.onrender.com](https://cfadeployedteam18.onrender.com)
+
 **Live demo:** `python -m web.app` → [http://localhost:5001](http://localhost:5001)
 
 ---
