@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_PPO_CHECKPOINT = ROOT / "models" / "best_ppo_twap_gap.zip"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -48,6 +49,20 @@ def _load_sb3_model(path: Path, algo: str) -> Any:
             last_err = e
             continue
     raise RuntimeError(f"Could not load {path}: {last_err}")
+
+
+def _compare_all_params(
+    bench_params: dict[str, Any],
+    fixed_starts: list[tuple[int, int]] | None,
+    seed: int,
+) -> dict[str, Any]:
+    """Align printed benchmark table with ``evaluate_agent`` / web case study (``fixed_row_starts``)."""
+    p = {**bench_params, "seed": int(seed)}
+    if fixed_starts:
+        row_starts = [int(r) for r, _ in fixed_starts]
+        p["fixed_row_starts"] = row_starts
+        p["n_starts"] = len(row_starts)
+    return p
 
 
 def _build_final_eval_agent(
@@ -225,13 +240,15 @@ def main() -> None:
         "--residual-bound",
         type=float,
         default=None,
-        help="Enable TWAP-residual action: a=0.5 is TWAP, deviation bounded by this (e.g. 0.15).",
+        help="TWAP-residual action: a=0.5 is TWAP, deviation bounded by this. "
+        "When --order-notional-usd > 0, default 0.15 (same as web case study).",
     )
     ap.add_argument(
         "--relative-is-scale",
         type=float,
         default=None,
-        help="Scale for relative-IS reward (vs TWAP same-bar); 0 = disabled, 2.0 typical.",
+        help="Relative-IS reward scale vs TWAP same-bar. "
+        "When --order-notional-usd > 0, default 2.0 (same as web case study).",
     )
     ap.add_argument(
         "--ensemble",
@@ -339,6 +356,15 @@ def main() -> None:
     logger.info("Train rows after optional synthetic append: %s", len(train_df))
     logger.info("Regime sanity:\n%s", regime_sanity_summary(train_df, train_df["regime"].to_numpy()))
 
+    # Match web case study / deployment (web/precompute.py ORDER_NOTIONAL + RESIDUAL_BOUND + RELATIVE_IS_SCALE).
+    if float(args.order_notional_usd) > 0:
+        if args.residual_bound is None:
+            args.residual_bound = 0.15
+            logger.info("Default --residual-bound 0.15 (case-study / deployment alignment).")
+        if args.relative_is_scale is None:
+            args.relative_is_scale = 2.0
+            logger.info("Default --relative-is-scale 2.0 (case-study / deployment alignment).")
+
     on = args.order_notional_usd if args.order_notional_usd > 0 else None
     env_kw = dict(
         T=10,
@@ -404,14 +430,39 @@ def main() -> None:
     }
 
     fixed_starts = None
+    default_starts_path = ROOT / "models" / "fixed_eval_starts.json"
     if args.fixed_eval_starts and Path(args.fixed_eval_starts).exists():
-        fixed_starts = load_fixed_eval_starts(args.fixed_eval_starts)
+        fixed_starts = load_fixed_eval_starts(Path(args.fixed_eval_starts))
         logger.info("Loaded %d fixed eval starts from %s", len(fixed_starts), args.fixed_eval_starts)
+    elif default_starts_path.is_file():
+        fixed_starts = load_fixed_eval_starts(default_starts_path)
+        logger.info(
+            "Loaded %d fixed eval starts from %s (reuse for stable benchmarks vs case study)",
+            len(fixed_starts),
+            default_starts_path,
+        )
     else:
         fixed_starts = generate_fixed_eval_starts(env, n=int(args.n_fixed_eval), seed=args.seed)
-        starts_path = ROOT / "models" / "fixed_eval_starts.json"
-        save_fixed_eval_starts(fixed_starts, starts_path)
-        logger.info("Generated %d fixed eval starts → %s", len(fixed_starts), starts_path)
+        save_fixed_eval_starts(fixed_starts, default_starts_path)
+        logger.info("Generated %d fixed eval starts → %s", len(fixed_starts), default_starts_path)
+
+    T_horizon = int(env_kw["T"])
+    max_start = len(test_df) - T_horizon - 1
+    if fixed_starts and max_start >= 0:
+        n_before = len(fixed_starts)
+        fixed_starts = [(int(r), int(s)) for r, s in fixed_starts if 0 <= int(r) <= max_start]
+        dropped = n_before - len(fixed_starts)
+        if dropped:
+            logger.warning(
+                "Dropped %d fixed eval starts outside valid range [0, %d] for this panel",
+                dropped,
+                max_start,
+            )
+        if not fixed_starts:
+            logger.warning("No valid fixed starts after filter; regenerating.")
+            fixed_starts = generate_fixed_eval_starts(env, n=int(args.n_fixed_eval), seed=args.seed)
+            save_fixed_eval_starts(fixed_starts, default_starts_path)
+            logger.info("Regenerated %d fixed eval starts → %s", len(fixed_starts), default_starts_path)
 
     eval_trend_kw = dict(
         trend_lookback=int(args.trend_lookback),
@@ -583,6 +634,12 @@ def main() -> None:
             primary: Any = EnsemblePolicy(models)
         elif str(args.load_model).strip() and Path(args.load_model).is_file():
             primary = _load_sb3_model(Path(args.load_model), args.algo)
+        elif DEFAULT_PPO_CHECKPOINT.is_file():
+            logger.info(
+                "Eval-only: loading default checkpoint %s (omit --load-model to use another path)",
+                DEFAULT_PPO_CHECKPOINT,
+            )
+            primary = _load_sb3_model(DEFAULT_PPO_CHECKPOINT, args.algo)
         elif args.regime_switch:
             primary = TWAPFallbackPolicy(env)
         else:
@@ -593,6 +650,10 @@ def main() -> None:
                     return rng.uniform(0.0, 1.0, size=(1,)), None
 
             primary = R()
+            logger.warning(
+                "No PPO checkpoint found at %s and no --load-model — using random policy for RL row",
+                DEFAULT_PPO_CHECKPOINT,
+            )
         final_agent = _build_final_eval_agent(primary, env, args, specialist_model)
         if args.regime_switch and hasattr(final_agent, "policy_selections"):
             logger.info("Regime switch selections: %s", final_agent.policy_selections)
@@ -612,7 +673,7 @@ def main() -> None:
         compare_all(
             rl_stats,
             test_df,
-            params={**bench_params, "seed": args.seed},
+            params=_compare_all_params(bench_params, fixed_starts, args.seed),
         ).to_string(index=False),
     )
 

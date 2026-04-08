@@ -17,6 +17,14 @@ logger = logging.getLogger(__name__)
 EPS = 1e-8
 
 
+def _first_series(df: pd.DataFrame, *names: str) -> pd.Series | None:
+    """Return the first column among ``names`` that exists in ``df``."""
+    for n in names:
+        if n in df.columns:
+            return df[n]
+    return None
+
+
 def _ensure_datetime_index(df: pd.DataFrame, date_col: str = "date") -> pd.DataFrame:
     out = df.copy()
     if date_col in out.columns:
@@ -29,6 +37,15 @@ def _ensure_datetime_index(df: pd.DataFrame, date_col: str = "date") -> pd.DataF
 
 
 def load_features_parquet(path: Path, ticker: Optional[str] = None) -> pd.DataFrame:
+    """Load CRSP-style parquet into the internal panel used by the env and HMM.
+
+    **Canonical input columns** (see README §2.1): ``date``, ``prc``, ``high``, ``low``,
+    ``vol``, and exactly one of ``real_vol_20d`` or ``realised_vol_20`` (20-day realised
+    vol, annualised scale as in CRSP). Opening price: ``oprc`` preferred; ``openprc`` is
+    accepted as an alias; if neither is present, open defaults to close. Amihud:
+    ``amihud_20d`` or ``amihud_daily``. Optional: ``vix``, ``ticker``, ``permno``, ``ret``,
+    ``retx``, ``shrout``.
+    """
     df = pd.read_parquet(path)
     if ticker is not None and "ticker" in df.columns:
         df = df.loc[df["ticker"].astype(str) == ticker].copy()
@@ -36,14 +53,22 @@ def load_features_parquet(path: Path, ticker: Optional[str] = None) -> pd.DataFr
     close = out["prc"].astype(float)
     high = out["high"].astype(float)
     low = out["low"].astype(float)
-    open_px = out["oprc"].astype(float) if "oprc" in out.columns else close
+    open_s = _first_series(out, "oprc", "openprc")
+    open_px = open_s.astype(float) if open_s is not None else close
     vol = out["vol"].astype(float).replace(0, np.nan)
+    amihud_s = _first_series(out, "amihud_20d", "amihud_daily")
     amihud = (
-        out["amihud_20d"]
-        if "amihud_20d" in out.columns
-        else out.get("amihud_daily", pd.Series(np.nan, index=out.index))
-    ).astype(float)
-    rv = out["real_vol_20d"].astype(float)
+        amihud_s.astype(float)
+        if amihud_s is not None
+        else pd.Series(np.nan, index=out.index, dtype=float)
+    )
+    rv_s = _first_series(out, "real_vol_20d", "realised_vol_20")
+    if rv_s is None:
+        raise ValueError(
+            "features parquet must include one of: real_vol_20d, realised_vol_20 "
+            f"(file: {path})"
+        )
+    rv = rv_s.astype(float)
     vix_s = out["vix"].astype(float) if "vix" in out.columns else pd.Series(np.nan, index=out.index)
     bid_ask_proxy = (high - low) / (close + EPS)
     volume_to_spread = vol / (bid_ask_proxy + EPS)

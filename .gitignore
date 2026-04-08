@@ -52,8 +52,10 @@ data/raw/*
 # Regenerate with scripts/build_bbo_daily.py
 data/processed/*.parquet
 
-# --- Models & training artifacts (optional: remove lines to commit small .zip) ---
+# --- Models & training artifacts ---
 models/*.zip
+# Shipped for judges (no retraining required); keep this exception below the *.zip rule
+!models/best_ppo_twap_gap.zip
 models/ckpt/
 logs/
 

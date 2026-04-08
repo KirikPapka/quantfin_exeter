@@ -59,13 +59,33 @@ Or copy `.env.example` → `.env` and fill in `CFA_DATA_ROOT` there (auto-loaded
 ```bash
 # Web application (recommended — includes Case Study, Execution Lab, User Manual)
 python -m web.app
-# Open http://localhost:5001
+# Open http://localhost:5001/case-study
 
 # Quick smoke test
 pytest -q
 ```
 
-The web app pre-computes the case study at startup (~10 s) and requires a trained PPO checkpoint under `models/` (see section 5 or use the provided `best_ppo_twap_gap.zip` if included).
+The web app **pre-computes** the case study at startup (~10 s). It uses the same settings as `scripts/train.py` when evaluating with **`--order-notional-usd` > 0** (see §5): **\$5M** notional, **T = 10**, **TWAP-residual ±15%**, **relative-IS scale 2.0**, test split **SPY**, optional BBO/news merge if files exist.
+
+### Committed model (no training required)
+
+This repository includes:
+
+- **`models/best_ppo_twap_gap.zip`** — trained PPO checkpoint for SPY execution (eval-only / case study).
+- **`models/fixed_eval_starts.json`** — path-aligned evaluation windows shared by `train.py` and the web app.
+
+You do **not** need to run `--train` to verify the solution. After `pip install` and `CFA_DATA_ROOT`, use **`python -m web.app`** or **`python scripts/train.py --ticker SPY --order-notional-usd 5e6`** (eval-only loads `best_ppo_twap_gap.zip` automatically when `--load-model` is omitted).
+
+### Matching numbers vs the public deployment
+
+Use the **same** market data and optional microstructure files as the host you compare against:
+
+1. **`CFA_DATA_ROOT`** — identical `features_*.parquet`; for closest match to [the deployed demo](https://cfadeployedteam18.onrender.com/case-study), also mirror optional `data/processed/bbo_daily.parquet` and `news_daily_SPY.parquet` if the server has them.
+2. **`models/fixed_eval_starts.json`** — already in-repo; delete it only if you intentionally want new random windows (reported means will change).
+3. **Checkpoint choice:** **`python -m web.app`** runs a small **sweep** over recent `models/*.zip` files and picks the best on a validation subset (see `web/precompute.py`). If you add extra checkpoints beside `best_ppo_twap_gap.zip`, the UI might select a different policy than the committed default. For a **deterministic** match to the shipped checkpoint, either keep only the intended `.zip` files in `models/` or rely on **`train.py`** eval, which uses **`best_ppo_twap_gap.zip`** by default when not training.
+4. **CLI benchmark table:** `train.py` prints TWAP / VWAP / Almgren–Chriss / Immediate on the **same** row starts as the RL line when `fixed_eval_starts.json` is used (aligned with the case study logic).
+
+Then open **`/case-study`** or run **`python scripts/train.py --ticker SPY --order-notional-usd 5e6`** and compare the printed **Benchmarks** table. Override the checkpoint with **`--load-model path/to/other.zip`** if needed.
 
 ---
 
@@ -86,22 +106,28 @@ features/
 └── features_test.parquet    (2024-01-01 to 2024-12-31)
 ```
 
-Required columns (CRSP naming):
+**Parquet schema** matches `load_features_parquet` in [`src/data_pipeline.py`](src/data_pipeline.py) (that function is the source of truth).
 
-| Column | Description |
-|---|---|
-| `permno` | Security identifier |
-| `date` | Trading date |
-| `prc` | Closing price |
-| `openprc` | Opening price |
-| `high` | Daily high |
-| `low` | Daily low |
-| `vol` | Daily volume (shares) |
-| `shrout` | Shares outstanding |
-| `ret`, `retx` | Total & ex-dividend return |
-| `ticker` | Ticker symbol (e.g. `SPY`) |
+| Column | Required | Description |
+|---|---|---|
+| `date` | Yes | Trading date (indexed after load) |
+| `prc` | Yes | Closing price |
+| `high`, `low` | Yes | Daily high / low |
+| `vol` | Yes | Daily volume (shares) |
+| `real_vol_20d` | Yes* | 20-day realised volatility (annualised, CRSP-style) |
+| `realised_vol_20` | Yes* | Alias for the same series if your extract already uses this name |
+| `oprc` | No | Opening price (preferred name in loader) |
+| `openprc` | No | Alias for opening price; if neither `oprc` nor `openprc` is present, open defaults to close |
+| `amihud_20d` | No | Amihud illiquidity; else `amihud_daily`; missing values filled with 0 in-panel |
+| `vix` | No | VIX level (forward-filled into `vix_aligned`) |
+| `ticker` | No | Filter to one symbol (e.g. `SPY`) when present |
+| `permno` | No | Security identifier |
+| `shrout` | No | Shares outstanding |
+| `ret`, `retx` | No | Total & ex-dividend return |
 
-The code builds derived features automatically: `realised_vol_20`, `sigma_daily`, `amihud_illiquidity`, `bid_ask_proxy`, `volume_to_spread`, `vix_aligned`.
+\*Exactly one of `real_vol_20d` or `realised_vol_20` must be present.
+
+The loader then builds: `realised_vol_20` (internal), `sigma_daily`, `amihud_illiquidity`, `bid_ask_proxy`, `volume_to_spread`, `vix_aligned`.
 
 ### 2.2 VIX data (included in features or downloadable)
 
@@ -193,7 +219,7 @@ quantfin_exeter/
 │   ├── llm_explainer.py        # Claude governance + cache
 │   ├── ui_rollout.py           # Single-episode rollout for UI
 │   └── utils.py
-├── models/                     # PPO .zip checkpoints (gitignored)
+├── models/                     # best_ppo_twap_gap.zip + fixed_eval_starts.json (tracked); other .zip gitignored
 ├── tests/
 └── logs/                       # TensorBoard (gitignored)
 ```
@@ -226,12 +252,23 @@ python -m web.app
 python scripts/train.py --ticker SPY --order-notional-usd 5e6
 ```
 
+With **`--order-notional-usd` > 0**, `train.py` automatically applies **`--residual-bound 0.15`** and **`--relative-is-scale 2.0`** if you omit them — matching **`web/precompute.py`** and the **Case Study** page. **Eval-only** loads **`models/best_ppo_twap_gap.zip`** automatically when that file exists (the committed checkpoint). Evaluation uses **`models/fixed_eval_starts.json`** when present (otherwise it creates one under `models/`).
+
+Use another checkpoint explicitly:
+
+```bash
+python scripts/train.py --ticker SPY --order-notional-usd 5e6 \
+  --load-model models/your_other.zip
+```
+
 ### Train PPO
 
 ```bash
 python scripts/train.py --ticker SPY --train --order-notional-usd 5e6 \
   --residual-bound 0.15 --relative-is-scale 2.0 --timesteps 300000
 ```
+
+(`--residual-bound` / `--relative-is-scale` are redundant here because physical mode defaults them to 0.15 and 2.0; kept explicit for clarity.)
 
 Saves `models/best_ppo_twap_gap.zip` when the path-aligned TWAP gap improves during training.
 
@@ -240,11 +277,13 @@ Saves `models/best_ppo_twap_gap.zip` when the path-aligned TWAP gap improves dur
 | Flag | Default | Purpose |
 |---|---|---|
 | `--order-notional-usd` | 0 | USD order size (>0 enables physical mode) |
-| `--residual-bound` | — | TWAP-residual action (e.g. 0.15 = ±15% from TWAP) |
-| `--relative-is-scale` | 0 | Per-bar improvement-over-TWAP reward scaling |
+| `--residual-bound` | **0.15** if physical\* | TWAP-residual action (± fraction from TWAP schedule) |
+| `--relative-is-scale` | **2.0** if physical\* | Per-bar improvement-over-TWAP reward scaling |
 | `--timesteps` | 300000 | Training steps |
 | `--n-envs` | 1 | Vectorized rollouts |
 | `--eval-freq` | 25000 | Evaluate & save best checkpoint every N steps |
+
+\*When `--order-notional-usd > 0` and the flag is omitted. Pass your own values to override.
 
 ### Scenario benchmarks
 
@@ -257,7 +296,9 @@ python scripts/scenario_benchmarks.py \
 
 ### Path-aligned evaluation
 
-The benchmark table uses random episode starts. For head-to-head RL vs TWAP comparison, the system computes **path-aligned metrics** on identical `(start, T)` windows:
+**Case Study** and **`train.py`** evaluate RL and benchmarks on the **same** `(row_start, T)` windows when **`models/fixed_eval_starts.json`** is present (up to 200 windows; see `web/precompute.py`). If that file is missing, `train.py` **generates** it once; the web app then reuses it — so local numbers stay consistent across CLI and UI.
+
+For head-to-head RL vs TWAP, the report includes **path-aligned metrics**:
 
 | Metric | Meaning |
 |---|---|
