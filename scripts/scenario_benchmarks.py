@@ -15,8 +15,10 @@ if str(ROOT) not in sys.path:
 import numpy as np
 
 from src.benchmarks import compare_all
+from src.regime_switching import TWAPFallbackPolicy, build_regime_switching_policy
 from src.rl_agent import evaluate_agent, format_rl_eval_report
 from src.scenario_paths import synthetic_panel
+from src.trend_classifier import compute_trend_regime
 from src.trading_env import OptimalExecutionEnv, physical_institutional_kwargs
 from src.utils import setup_logging
 
@@ -55,7 +57,7 @@ class _RandomAgent:
         return self._rng.uniform(0.0, 1.0, size=(1,)), None
 
 
-def _load_trained_policy(path: str):
+def _load_trained_policy(path: str, algo: str = "PPO"):
     """Load a Stable-Baselines3 PPO or SAC zip from ``path``."""
     from stable_baselines3 import PPO, SAC
 
@@ -63,7 +65,8 @@ def _load_trained_policy(path: str):
     if not p.is_file():
         raise SystemExit(f"Model file not found: {p}")
     last_err: Exception | None = None
-    for cls in (PPO, SAC):
+    order = (PPO, SAC) if str(algo).upper() == "PPO" else (SAC, PPO)
+    for cls in order:
         try:
             return cls.load(str(p))
         except Exception as e:  # noqa: BLE001
@@ -137,6 +140,33 @@ def main() -> None:
         default=None,
         help="Inventory risk weight (must match training).",
     )
+    ap.add_argument(
+        "--regime-switch",
+        action="store_true",
+        help="Use trend-based RegimeSwitchingPolicy (uptrend=--model, mid/down configurable).",
+    )
+    ap.add_argument(
+        "--downtrend-model",
+        type=str,
+        default="",
+        help="PPO/SAC .zip for downtrend slot when using --regime-switch.",
+    )
+    ap.add_argument(
+        "--midtrend-strategy",
+        choices=("twap", "downtrend_model"),
+        default="twap",
+        help="Mid-trend slot when using --regime-switch.",
+    )
+    ap.add_argument("--trend-lookback", type=int, default=20)
+    ap.add_argument("--trend-up-pct", type=float, default=0.02)
+    ap.add_argument("--trend-down-pct", type=float, default=-0.02)
+    ap.add_argument(
+        "--algo",
+        type=str,
+        default="PPO",
+        choices=("PPO", "SAC"),
+        help="Algorithm for loading --downtrend-model (try order).",
+    )
     args = ap.parse_args()
 
     setup_logging()
@@ -167,8 +197,20 @@ def main() -> None:
     if args.relative_is_scale is not None and on is None:
         env_kw["relative_is_scale"] = float(args.relative_is_scale)
 
+    eval_trend_kw = dict(
+        trend_lookback=int(args.trend_lookback),
+        trend_up_pct=float(args.trend_up_pct),
+        trend_down_pct=float(args.trend_down_pct),
+    )
+
     for kind in ("flat", "up", "down"):
         df = synthetic_panel(kind, n=int(args.bars), step=float(args.step))
+        df = compute_trend_regime(
+            df,
+            lookback=int(args.trend_lookback),
+            up_pct=float(args.trend_up_pct),
+            down_pct=float(args.trend_down_pct),
+        )
         bp = _bench_params(
             int(args.T),
             float(args.order_notional_usd),
@@ -190,17 +232,34 @@ def main() -> None:
         else:
             env = OptimalExecutionEnv(df, **env_kw)
             if args.model:
-                agent = _load_trained_policy(args.model)
+                uptrend = _load_trained_policy(args.model, algo=args.algo)
                 policy_label = f"trained ({Path(args.model).name})"
             else:
-                agent = _RandomAgent(int(args.seed))
+                uptrend = _RandomAgent(int(args.seed))
                 policy_label = "random policy"
+            if args.regime_switch:
+                downtrend = TWAPFallbackPolicy(env)
+                if str(args.downtrend_model).strip():
+                    downtrend = _load_trained_policy(args.downtrend_model, algo=args.algo)
+                agent = build_regime_switching_policy(
+                    uptrend,
+                    downtrend,
+                    env,
+                    midtrend_strategy=str(args.midtrend_strategy),
+                    lookback=int(args.trend_lookback),
+                    up_pct=float(args.trend_up_pct),
+                    down_pct=float(args.trend_down_pct),
+                )
+                policy_label = f"{policy_label} + regime-switch"
+            else:
+                agent = uptrend
             rl_stats = evaluate_agent(
                 agent,
                 env,
                 n_episodes=int(args.n_episodes),
                 seed=int(args.seed),
                 bench_params=_eval_params(bp),
+                **eval_trend_kw,
             )
             logger.info("RL (%s) path-aligned:\n%s", policy_label, format_rl_eval_report(rl_stats))
 

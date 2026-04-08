@@ -1,0 +1,21 @@
+{% if error %}
+<div class="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">
+  {{ error }}
+</div>
+{% else %}
+<div id="regime-plot" style="height:360px;" class="rounded-xl overflow-hidden"></div>
+{% if summary %}
+<div class="mt-4 grid grid-cols-2 md:grid-cols-{{ summary|length }} gap-3">
+  {% for row in summary %}
+  <div class="bg-navy-50 rounded-lg p-3 text-center">
+    <p class="text-xs text-navy-400 uppercase font-semibold">{{ row.name }}</p>
+    <p class="text-xl font-bold text-navy-900">{{ row.count }} <span class="text-sm font-normal text-navy-400">days</span></p>
+    <p class="text-xs text-navy-400">avg vol: {{ "%.1f"|format(row.mean_vol * 100) }}%</p>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+<script>
+  renderRegimeChart('regime-plot', {{ chart_json | safe }});
+</script>
+{% endif %}

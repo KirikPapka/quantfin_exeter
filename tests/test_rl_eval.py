@@ -52,3 +52,23 @@ def test_evaluate_agent_path_aligned_keys():
     txt = format_rl_eval_report(st)
     assert "RL_minus_TWAP" in txt
     assert "IS-gap Sharpe" in txt
+    assert any(k.startswith("mean_rl_minus_twap_bps_trend") for k in st)
+
+
+def test_evaluate_agent_trend_keys_precomputed_column():
+    df = _panel()
+    from src.trend_classifier import compute_trend_regime
+
+    df = compute_trend_regime(df, lookback=5, up_pct=0.001, down_pct=-0.001)
+    env = OptimalExecutionEnv(df, T=8, resample=True, seed=1)
+    bp = {
+        "T": 8,
+        "X_0": 1.0,
+        "eta": 0.01,
+        "gamma": 0.001,
+        "lam": 0.5,
+        "order_notional_usd": 0.0,
+        "order_start_bar": 0,
+    }
+    st = evaluate_agent(_Rand(), env, n_episodes=15, seed=3, bench_params=bp)
+    assert any(k.startswith("mean_rl_minus_twap_bps_trend") for k in st)

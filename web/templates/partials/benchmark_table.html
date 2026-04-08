@@ -1,0 +1,40 @@
+{% if error %}
+<div class="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">
+  {{ error }}
+</div>
+{% else %}
+<div class="overflow-x-auto rounded-xl border border-navy-100 mb-4">
+  <table class="bench-table">
+    <thead>
+      <tr>
+        <th>Strategy</th>
+        <th>Mean IS (bps)</th>
+        <th>Std IS (bps)</th>
+        <th>Completion Rate</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr class="{{ 'rl-row' if row.Strategy == 'RL' }}">
+        <td class="font-medium">{{ row.Strategy }}</td>
+        <td>{{ "%.2f"|format(row.Mean_IS_bps) }}</td>
+        <td>{{ "%.2f"|format(row.Std_IS_bps) }}</td>
+        <td>{{ "%.0f"|format(row.Completion_Rate * 100) }}%</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if rl_report %}
+<details class="mb-4">
+  <summary class="cursor-pointer text-sm font-semibold text-navy-600 hover:text-navy-900 transition-colors">
+    Path-Aligned RL Diagnostics
+  </summary>
+  <pre class="mt-2 bg-navy-50 rounded-lg p-4 text-xs text-navy-700 font-mono overflow-x-auto">{{ rl_report }}</pre>
+</details>
+{% endif %}
+<div id="bench-plot" style="height:300px;" class="rounded-xl overflow-hidden"></div>
+<script>
+  renderBenchmarkChart('bench-plot', {{ chart_json | safe }});
+</script>
+{% endif %}

@@ -231,8 +231,17 @@ def compare_all(
     max_start = len(price_data) - T - 1
     if max_start < 0:
         raise ValueError("price_data too short.")
-    rng = np.random.default_rng(params.get("seed", 42))
-    starts = rng.choice(max_start + 1, size=min(n_starts, max_start + 1), replace=False)
+    fixed_rows = params.get("fixed_row_starts")
+    if fixed_rows is not None and len(fixed_rows) > 0:
+        starts = np.array(
+            [int(s) for s in fixed_rows if 0 <= int(s) <= max_start],
+            dtype=np.int64,
+        )
+        if len(starts) == 0:
+            raise ValueError("fixed_row_starts produced no valid windows for this panel")
+    else:
+        rng = np.random.default_rng(params.get("seed", 42))
+        starts = rng.choice(max_start + 1, size=min(n_starts, max_start + 1), replace=False)
 
     def _collect(fn, **kw: Any) -> list[float]:
         out: list[float] = []

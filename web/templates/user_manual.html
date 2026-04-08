@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}User Manual{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+{% endblock %}
+
+{% block content %}
+<div class="page-light">
+
+<section class="bg-navy-950 pt-28 pb-16 relative overflow-hidden">
+  <div class="absolute inset-0 opacity-30">
+    <div class="absolute inset-0" style="background:radial-gradient(ellipse 60% 50% at 70% 40%, rgba(245,158,11,0.12), transparent 60%)"></div>
+  </div>
+  <div class="max-w-7xl mx-auto px-6 lg:px-8 relative z-10 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+    <div>
+      <p class="text-accent-400 font-semibold text-sm uppercase tracking-wider mb-3">Documentation</p>
+      <h1 class="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-4">User Manual</h1>
+      <p class="text-navy-300 text-lg max-w-3xl leading-relaxed">
+        Methodology, formulas, and configuration for QuantFin Exeter — regime detection, PPO execution, benchmarks, and governance.
+      </p>
+    </div>
+    <a href="https://github.com/KirikPapka/quantfin_exeter" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-sm border border-white/20 transition-colors shrink-0">
+      <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+      View on GitHub
+    </a>
+  </div>
+</section>
+
+<div id="user-manual-main" class="max-w-7xl mx-auto px-6 lg:px-8 py-14">
+  <div class="lg:grid lg:grid-cols-[minmax(200px,240px)_1fr] lg:gap-12 xl:gap-16">
+    <aside class="hidden lg:block">
+      <nav class="sticky top-24 space-y-1 text-sm border-l-2 border-navy-200 pl-4" aria-label="Table of contents">
+        <p class="font-bold text-navy-900 uppercase tracking-wider text-xs mb-3 pl-0 -ml-4">Contents</p>
+        <a href="#introduction" class="block py-1 text-navy-600 hover:text-accent-600">1. Introduction</a>
+        <a href="#data" class="block py-1 text-navy-600 hover:text-accent-600">2. Data</a>
+        <a href="#hmm-regimes" class="block py-1 text-navy-600 hover:text-accent-600">3. Regime detection (HMM)</a>
+        <a href="#ppo-rl" class="block py-1 text-navy-600 hover:text-accent-600">4. Reinforcement learning (PPO)</a>
+        <a href="#market-impact" class="block py-1 text-navy-600 hover:text-accent-600">5. Market impact model</a>
+        <a href="#benchmarks" class="block py-1 text-navy-600 hover:text-accent-600">6. Benchmarks</a>
+        <a href="#implementation-shortfall" class="block py-1 text-navy-600 hover:text-accent-600">7. Implementation shortfall</a>
+        <a href="#llm-governance" class="block py-1 text-navy-600 hover:text-accent-600">8. LLM governance</a>
+        <a href="#configuration-reference" class="block py-1 text-navy-600 hover:text-accent-600">9. Configuration (Run page)</a>
+        <a href="#trend-classification" class="block py-1 text-navy-600 hover:text-accent-600">10. Trend classification</a>
+      </nav>
+    </aside>
+
+    <div class="space-y-12 min-w-0">
+      <nav class="lg:hidden flex flex-wrap gap-2 text-xs font-medium mb-8" aria-label="On this page">
+        <a href="#introduction" class="px-2 py-1 rounded bg-navy-100 text-navy-700">Intro</a>
+        <a href="#data" class="px-2 py-1 rounded bg-navy-100 text-navy-700">Data</a>
+        <a href="#hmm-regimes" class="px-2 py-1 rounded bg-navy-100 text-navy-700">HMM</a>
+        <a href="#ppo-rl" class="px-2 py-1 rounded bg-navy-100 text-navy-700">PPO</a>
+        <a href="#market-impact" class="px-2 py-1 rounded bg-navy-100 text-navy-700">Impact</a>
+        <a href="#benchmarks" class="px-2 py-1 rounded bg-navy-100 text-navy-700">Benchmarks</a>
+        <a href="#implementation-shortfall" class="px-2 py-1 rounded bg-navy-100 text-navy-700">IS</a>
+        <a href="#llm-governance" class="px-2 py-1 rounded bg-navy-100 text-navy-700">LLM</a>
+        <a href="#configuration-reference" class="px-2 py-1 rounded bg-navy-100 text-navy-700">Config</a>
+        <a href="#trend-classification" class="px-2 py-1 rounded bg-navy-100 text-navy-700">Trend</a>
+      </nav>
+
+      <section id="introduction" class="step-card scroll-mt-28">
+        <h2 class="text-2xl font-bold text-navy-900 mb-4">1. Introduction</h2>
+        <p class="text-navy-600 leading-relaxed mb-4">
+          QuantFin Exeter is a research and demo stack for <strong>optimal trade execution</strong> on SPY-style daily data: it labels market regimes, trains a <strong>PPO</strong> policy to schedule liquidation over a fixed horizon, compares against classical benchmarks (TWAP, VWAP, Almgren–Chriss, immediate), and optionally explains decisions with an <strong>LLM</strong> layer.
+        </p>
+        <p class="text-navy-600 leading-relaxed mb-4">
+          It is aimed at students, quants, and PMs who want a transparent pipeline from features → regimes → RL → benchmarks → narrative governance.
+        </p>
+        <p class="text-navy-600 leading-relaxed">
+          Source code: <a href="https://github.com/KirikPapka/quantfin_exeter" class="text-accent-600 font-semibold hover:underline" target="_blank" rel="noopener noreferrer">github.com/KirikPapka/quantfin_exeter</a>
+        </p>
+      </section>
+
+      <section id="data" class="step-card scroll-mt-28">
+        <h2 class="text-2xl font-bold text-navy-900 mb-4">2. Data</h2>
+        <p class="text-navy-600 leading-relaxed mb-4">
+          The pipeline expects <strong>CRSP-style daily parquet</strong> (per-split feature files under <code class="text-sm bg-navy-100 px-1 rounded">data/features/features_{train,val,test}.parquet</code>), filtered to ticker <strong>SPY</strong> when a <code>ticker</code> column exists.
+        </p>
+        <p class="text-navy-600 leading-relaxed mb-3">Core columns built in <code>load_features_parquet</code> include:</p>
+        <ul class="list-disc pl-6 text-navy-600 space-y-2 mb-4">
+          <li><strong>OHLCV:</strong> <code>Open</code>, <code>High</code>, <code>Low</code>, <code>Close</code>, <code>Volume</code></li>
+          <li><strong>Volatility:</strong> <code>realised_vol_20</code> (20-day realised vol), and
+            \[ \sigma_{\text{daily}} = \frac{\mathrm{rv}_{20}}{\sqrt{252}} \]
+          </li>
+          <li><strong>Liquidity / microstructure proxies:</strong> <code>amihud_illiquidity</code>,
+            \[ \text{bid\_ask\_proxy} = \frac{H - L}{C + \varepsilon}, \qquad
+               \text{volume\_to\_spread} = \frac{V}{\text{bid\_ask\_proxy} + \varepsilon} \]
+          </li>
+          <li><strong>VIX:</strong> <code>vix_aligned</code> (forward-filled)</li>
+        </ul>
+        <p class="text-navy-600 leading-relaxed mb-3"><strong>Optional enrichments:</strong></p>
+        <ul class="list-disc pl-6 text-navy-600 space-y-2">
+          <li><strong>BBO order imbalance (NASDAQ ITCH L1):</strong> merged from <code>data/processed/bbo_daily.parquet</code> when present; daily series can start from <strong>2019-01-02</strong> depending on your ITCH extract. Appears as <code>order_imbalance_daily</code> for HMM features when merged.</li>
+          <li><strong>Finnhub news:</strong> optional daily news counts merged when a news parquet is configured in the pipeline.</li>
+        </ul>
+      </section>
+
+      <section id="hmm-regimes" class="step-card scroll-mt-28">
+        <h2 class="text-2xl font-bold text-navy-900 mb-4">3. Regime detection (HMM)</h2>
+        <p class="text-navy-600 leading-relaxed mb-4">
+          A <strong>Hidden Markov Model (HMM)</strong> assumes the market switches among a small number of latent states; each day you only observe features, not the state. <code>GaussianHMM</code> (hmmlearn) with <strong>full covariance</strong> is fit on scaled features; predicted states are <strong>re-ordered by mean realised volatility</strong> so lower indices mean calmer conditions (for 2 states: 0 = calm, 1 = elevated; with 3 states you get calm / elevated / stressed ordering by vol).
+        </p>
+        <p class="text-navy-600 leading-relaxed mb-3"><strong>Default feature vector</strong> (before <code>StandardScaler</code>):</p>
+        \[ \bigl(\mathrm{rv}_{20},\; \log(1 + \max(0, \text{volume\_to\_spread})),\; \text{optional OBI}\bigr)^\top \]
+        <p class="text-navy-600 leading-relaxed mt-4 mb-4">
+          If there are too few rows, fit fails, or any state holds &lt;5% of days, the detector falls back to a <strong>simple volatility threshold</strong> on <code>realised_vol_20</code> (default threshold <strong>0.24</strong>).
+        </p>
+      </section>
+
+      <section id="ppo-rl" class="step-card scroll-mt-28">
+        <h2 class="text-2xl font-bold text-navy-900 mb-4">4. Reinforcement learning (PPO)</h2>
+        <p class="text-navy-600 leading-relaxed mb-4">
+          <strong>PPO (Proximal Policy Optimization)</strong> is an on-policy actor–critic method that stabilizes policy updates by clipping the probability ratio between old and new policies. Here it learns a continuous policy over execution fractions on the <code>OptimalExecutionEnv</code> (Gymnasium).
+        </p>
+        <p class="text-navy-600 font-semibold mb-2">Observation space (9 dimensions)</p>
+        <p class="text-navy-600 text-sm mb-2">Vector: <code>[inventory_norm, rem, S_ratio, liq_z, sig_z, regime, pva, twap_gap, news_z]</code></p>
+        <ul class="space-y-3 text-navy-600 text-sm mb-4">
+          <li>\(x_{\text{inv}} = X / X_0\) — remaining inventory fraction.</li>
+          <li>\(r_{\text{time}} = (T - t) / T\) — time remaining.</li>
+          <li>\(S_{\text{ratio}} = \mathrm{Close}_t / \mathrm{Close}_{\text{start}}\).</li>
+          <li><code>liq_z</code>, <code>sig_z</code> — z-scores of Amihud and \(\sigma_{\text{daily}}\) vs train statistics.</li>
+          <li><code>regime</code> — HMM label.</li>
+          <li>\(\text{pva} = \mathrm{clip}\bigl(\mathrm{Close}/p_{\text{arr}} - 1,\,-0.5,\,0.5\bigr)\).</li>
+          <li><code>twap_gap</code> — normalized inventory minus TWAP schedule target after start bar \(t_0\); 0 before \(t_0\).</li>
+          <li><code>news_z</code> — z-scored news count, clipped to \([-4,4]\).</li>
+        </ul>
+        <p class="text-navy-600 font-semibold mb-2">Action space</p>
+        <p class="text-navy-600 leading-relaxed mb-4">
+          One continuous action in \([0,1]\): fraction of <strong>current</strong> inventory to sell this step (optional per-step cap and residual-bound shaping).
+        </p>
+        <p class="text-navy-600 font-semibold mb-2">Reward (physical USD mode, sketch)</p>
+        <p class="text-navy-600 leading-relaxed mb-2">
+          Inventory-risk term scales roughly as
+        </p>
+        \[ \left(\frac{X}{X_0}\right)^2 \sigma_{\text{daily}}^2 \cdot w_{\text{time}}(r_{\text{time}}), \quad w_{\text{time}}(r)= r^{3/2} \]
+        <p class="text-navy-600 leading-relaxed mt-3 mb-4">
+          plus normalized dollar shortfall vs arrival (scaled by <code>is_reward_scale</code>), optional TWAP-slice bonus, relative-IS term, terminal penalties/bonuses, and optional <code>eval_is_reward_coef</code> alignment.
+        </p>
+        <p class="text-navy-600 font-semibold mb-2"><code>physical_institutional_kwargs</code> defaults</p>
+        <p class="text-navy-600 text-sm mb-2">When notional &gt; 0, the helper returns (unless overridden):</p>
+        <pre class="bg-navy-900 text-navy-100 text-xs p-4 rounded-xl overflow-x-auto font-mono">max_inventory_fraction_per_step = 0.25
+is_reward_scale = 1.28
+twap_slice_bonus_coef = 0.60
+terminal_inventory_penalty = 5.0</pre>
+        <p class="text-navy-500 text-xs mt-2">If notional is zero or unset, the dict is empty (legacy dimensionless env).</p>
+      </section>
+
+      <section id="market-impact" class="step-card scroll-mt-28">
+        <h2 class="text-2xl font-bold text-navy-900 mb-4">5. Market impact model</h2>
+        <p class="text-navy-600 leading-relaxed mb-4">
+          Trade dollars \(\mathrm{td} = |v|\, S_{\text{base}}\), bar dollar volume \(\mathrm{dv} \approx V \cdot S_{\text{close}}\) (with guards), participation \(\mathrm{part} = \mathrm{td}/\mathrm{dv}\). Then:
+        </p>
+        <div class="overflow-x-auto py-2">
+          \[ \sqrt{\mathrm{part}^\ast} = \sqrt{\min(\mathrm{part},\, p_{\max}) + \varepsilon} \]
+          \[ \phi = \mathrm{clip}\Bigl(
+              \alpha_\sigma\, \sigma_{\text{daily}}\, \sqrt{\mathrm{part}^\ast}
+              + \alpha_A\, \mathrm{Amihud}\, \min(\mathrm{part},\, p_{\max}),\;
+              0,\, \phi_{\max} \Bigr) \]
+          \[ P_{\text{eff}} = \max\bigl(S_{\text{base}}(1-\phi),\, \varepsilon\bigr) \]
+        </div>
+        <p class="text-navy-600 text-sm mb-2">Defaults: \(\alpha_\sigma = 0.65\), \(\alpha_A = 0.35\), \(p_{\max} = 12\) (inside sqrt and Amihud term), \(\phi_{\max} = 0.35\).</p>
+        <p class="text-navy-600 leading-relaxed mt-4">
+          <strong>Arrival price</strong> for benchmarks and physical RL: <strong>previous bar’s close</strong> before the first execution bar (<code>arrival_price_full</code>).
+        </p>
+      </section>
+
+      <section id="benchmarks" class="step-card scroll-mt-28">
+        <h2 class="text-2xl font-bold text-navy-900 mb-4">6. Benchmarks</h2>
+        <p class="text-navy-600 leading-relaxed mb-4">All strategies compute average execution price vs the same arrival, then IS in bps (section 7).</p>
+        <p class="text-navy-600 font-semibold mb-2">TWAP</p>
+        <p class="text-navy-600 text-sm mb-2">Effective horizon \(T_{\text{eff}} = T - t_0\). Per-bar sell fraction in physical mode:</p>
+        \[ q_k = \frac{Q}{T_{\text{eff}}}, \quad k = t_0,\ldots,T-1 \]
+        <p class="text-navy-600 text-sm mb-4 mt-2">Each slice priced with <code>sell_effective_close</code>; legacy mode uses bar closes without impact.</p>
+        <p class="text-navy-600 font-semibold mb-2">VWAP</p>
+        \[ w_i = \frac{V_i}{\sum_j V_j}, \quad q_i = Q \cdot w_i \]
+        <p class="text-navy-600 text-sm mb-4 mt-2">Same impact law per slice in physical mode.</p>
+        <p class="text-navy-600 font-semibold mb-2">Almgren–Chriss</p>
+        \[ \kappa = \sqrt{\frac{\lambda \sigma^2}{\eta}}, \qquad
+           x_i = Q\,\frac{\sinh\bigl(\kappa(T_{\text{eff}}-i)\bigr)}{\sinh(\kappa T_{\text{eff}})}, \quad
+           \Delta x_i = x_{i-1} - x_i \]
+        <p class="text-navy-600 text-sm mb-4 mt-2">Parameters \(\eta,\gamma,\sigma,\lambda\) from run config; trades \(\Delta x_i\) executed with impact in physical mode.</p>
+        <p class="text-navy-600 font-semibold mb-2">Immediate</p>
+        <p class="text-navy-600 text-sm">Sell full \(Q\) on the first execution bar with one impact call (legacy: first close).</p>
+      </section>
+
+      <section id="implementation-shortfall" class="step-card scroll-mt-28">
+        <h2 class="text-2xl font-bold text-navy-900 mb-4">7. Implementation shortfall (IS)</h2>
+        <p class="text-navy-600 leading-relaxed mb-4">
+          For a <strong>sell</strong>, mean IS in basis points:
+        </p>
+        \[ \mathrm{IS}_{\text{bps}} = \frac{\bar p_{\text{exec}} - p_{\text{arr}}}{p_{\text{arr}}} \times 10^4 \]
+        <p class="text-navy-600 leading-relaxed mt-4 mb-2">
+          <strong>Higher \(\mathrm{IS}_{\text{bps}}\) is better</strong> for a sell (more proceeds vs arrival).
+        </p>
+        <p class="text-navy-600 leading-relaxed mb-2"><strong>USD edge</strong> from a \(\Delta\mathrm{IS}_{\text{bps}}\) gap vs a benchmark:</p>
+        \[ \Delta \mathrm{USD} \approx N \cdot \frac{\Delta\mathrm{IS}_{\text{bps}}}{10^4} \]
+        <p class="text-navy-500 text-sm mt-3">Example: \(\Delta\mathrm{IS} = 19.85\) bps on \(N = \$5{,}000{,}000\) → \(\Delta\mathrm{USD} \approx \$9{,}925\).</p>
+      </section>
+
+      <section id="llm-governance" class="step-card scroll-mt-28">
+        <h2 class="text-2xl font-bold text-navy-900 mb-4">8. LLM governance</h2>
+        <p class="text-navy-600 leading-relaxed mb-4">
+          <code>explain_execution</code> builds a structured <strong>Claude</strong> prompt (regime name, volatility, Amihud liquidity, inventory, action fraction, cost vs TWAP/Almgren–Chriss). The prompt is hashed (SHA-256, first 16 hex chars); responses are cached under <code>data/cached_llm/&lt;hash&gt;.json</code>.
+        </p>
+        <p class="text-navy-600 leading-relaxed">
+          If <code>ANTHROPIC_API_KEY</code> is missing, an <strong>offline template</strong> paragraph is returned and still written to the cache for reproducibility. Model name defaults to <code>ANTHROPIC_MODEL</code> or <code>claude-sonnet-4-20250514</code>.
+        </p>
+      </section>
+
+      <section id="configuration-reference" class="step-card scroll-mt-28">
+        <h2 class="text-2xl font-bold text-navy-900 mb-4">9. Configuration reference (Run page)</h2>
+        <dl class="space-y-4 text-navy-600 text-sm">
+          <div>
+            <dt class="font-bold text-navy-900">Data split</dt>
+            <dd class="mt-1">Train <strong>2018–2022</strong>, validation <strong>2023</strong>, test <strong>2024</strong> (as used for split parquet files in the standard pipeline).</dd>
+          </div>
+          <div>
+            <dt class="font-bold text-navy-900">HMM states</dt>
+            <dd class="mt-1"><strong>2</strong> or <strong>3</strong> Gaussian components; optional OBI feature when BBO data is merged.</dd>
+          </div>
+          <div>
+            <dt class="font-bold text-navy-900">Horizon <code>T</code></dt>
+            <dd class="mt-1">Number of <strong>daily bars</strong> in the execution window (episode length).</dd>
+          </div>
+          <div>
+            <dt class="font-bold text-navy-900">Policy</dt>
+            <dd class="mt-1">Trained PPO checkpoint from <code>models/</code> vs <strong>random</strong> agent baseline.</dd>
+          </div>
+          <div>
+            <dt class="font-bold text-navy-900">Episode seed</dt>
+            <dd class="mt-1">RNG seed for sampling the episode start index (when resampling is enabled).</dd>
+          </div>
+          <div>
+            <dt class="font-bold text-navy-900">Benchmark episodes</dt>
+            <dd class="mt-1">Number of evaluation windows for aggregate benchmark table; default <strong>200</strong>, allowed up to <strong>500</strong>.</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section id="trend-classification" class="step-card scroll-mt-28">
+        <h2 class="text-2xl font-bold text-navy-900 mb-4">10. Trend classification</h2>
+        <p class="text-navy-600 leading-relaxed mb-4">
+          Rolling return on <code>Close</code> with lookback \(L\) (default 20):
+        </p>
+        \[ r_t = \frac{C_t}{C_{t-L}} - 1 \]
+        <p class="text-navy-600 leading-relaxed mt-3 mb-2">Classification (defaults \(+2\%\), \(-2\%\)):</p>
+        \[ \text{label} = \begin{cases}
+          \text{up} & r_t \ge 0.02 \\
+          \text{down} & r_t \le -0.02 \\
+          \text{mid} & \text{otherwise}
+        \end{cases} \]
+        <p class="text-navy-500 text-sm mt-3">Code: <code>TREND_UP</code>, <code>TREND_MID</code>, <code>TREND_DOWN</code>.</p>
+      </section>
+    </div>
+  </div>
+</div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var el = document.getElementById("user-manual-main");
+    if (!el || typeof renderMathInElement === "undefined") return;
+    renderMathInElement(el, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true }
+      ],
+      throwOnError: false,
+      strict: false
+    });
+  });
+</script>
+{% endblock %}

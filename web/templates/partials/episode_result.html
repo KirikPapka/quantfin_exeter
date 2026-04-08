@@ -1,0 +1,28 @@
+{% if error %}
+<div class="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">
+  {{ error }}
+</div>
+{% else %}
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+  <div class="bg-navy-50 rounded-lg p-3 text-center">
+    <p class="text-xs text-navy-400 uppercase font-semibold">IS (bps)</p>
+    <p class="text-xl font-bold text-navy-900">{{ "%.2f"|format(summary.is_bps) }}</p>
+  </div>
+  <div class="bg-navy-50 rounded-lg p-3 text-center">
+    <p class="text-xs text-navy-400 uppercase font-semibold">Completed</p>
+    <p class="text-xl font-bold text-navy-900">{{ "Yes" if summary.completed else "No" }}</p>
+  </div>
+  <div class="bg-navy-50 rounded-lg p-3 text-center">
+    <p class="text-xs text-navy-400 uppercase font-semibold">Steps</p>
+    <p class="text-xl font-bold text-navy-900">{{ summary.steps }}</p>
+  </div>
+  <div class="bg-navy-50 rounded-lg p-3 text-center">
+    <p class="text-xs text-navy-400 uppercase font-semibold">Arrival Price</p>
+    <p class="text-xl font-bold text-navy-900">${{ "%.2f"|format(summary.arrival) }}</p>
+  </div>
+</div>
+<div id="episode-plot" style="height:340px;" class="rounded-xl overflow-hidden"></div>
+<script>
+  renderEpisodeChart('episode-plot', {{ chart_json | safe }});
+</script>
+{% endif %}

@@ -10,8 +10,10 @@ from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
+import pandas as pd
 
 from .benchmarks import twap_execution, vwap_execution
+from .trend_classifier import classify_trend_at
 from .trading_env import OptimalExecutionEnv
 
 logger = logging.getLogger(__name__)
@@ -264,6 +266,14 @@ def format_rl_eval_report(stats: dict[str, Any]) -> str:
                 n_key = f"n_episodes_regime{regime}"
                 n_ep = stats.get(n_key, "?")
                 lines.append(f"  TWAP gap regime {regime}         {stats[key]:.4f}  (n={n_ep})")
+        for key in sorted(stats):
+            if key.startswith("mean_rl_minus_twap_bps_trend"):
+                tr = key.split("trend")[-1]
+                n_key = f"n_episodes_trend{tr}"
+                n_ep = stats.get(n_key, "?")
+                lines.append(
+                    f"  TWAP gap trend {tr} (dn/mid/up) {stats[key]:.4f}  (n={n_ep})"
+                )
     else:
         lines.append("  (path-aligned TWAP/VWAP: pass bench_params=... to evaluate_agent)")
     return "\n".join(lines)
@@ -322,6 +332,9 @@ def evaluate_agent(
     *,
     bench_params: Optional[dict[str, Any]] = None,
     fixed_starts: Optional[list[tuple[int, int]]] = None,
+    trend_lookback: int = 20,
+    trend_up_pct: float = 0.02,
+    trend_down_pct: float = -0.02,
 ) -> dict[str, Any]:
     """Evaluate policy on ``env``.
 
@@ -331,6 +344,10 @@ def evaluate_agent(
 
     When ``fixed_starts`` is provided, each episode resets with the pre-sampled
     ``(row_start, reset_seed)`` pair for deterministic evaluation.
+
+    When ``bench_params`` is set, per-**trend** breakdown uses ``trend_regime`` on
+    ``price_data`` if present; otherwise ``classify_trend_at`` with
+    ``trend_lookback`` / ``trend_up_pct`` / ``trend_down_pct``.
     """
     rng = np.random.default_rng(seed)
     is_list: list[float] = []
@@ -345,6 +362,7 @@ def evaluate_agent(
     completed = 0
 
     regime_diff_t: dict[int, list[float]] = {}
+    trend_diff_t: dict[int, list[float]] = {}
 
     effective_n = len(fixed_starts) if fixed_starts else n_episodes
 
@@ -375,6 +393,37 @@ def evaluate_agent(
         terminated = False
         physical = bool(getattr(env, "_physical", False))
         ep_regime = int(env.price_data.iloc[start].get("regime", 0))
+        row_s = env.price_data.iloc[start]
+        if "trend_regime" in env.price_data.columns:
+            tr_raw = row_s.get("trend_regime", 1)
+            try:
+                ep_trend = (
+                    int(tr_raw)
+                    if pd.notna(tr_raw)
+                    else classify_trend_at(
+                        env.price_data,
+                        start,
+                        lookback=int(trend_lookback),
+                        up_pct=float(trend_up_pct),
+                        down_pct=float(trend_down_pct),
+                    )
+                )
+            except (TypeError, ValueError):
+                ep_trend = classify_trend_at(
+                    env.price_data,
+                    start,
+                    lookback=int(trend_lookback),
+                    up_pct=float(trend_up_pct),
+                    down_pct=float(trend_down_pct),
+                )
+        else:
+            ep_trend = classify_trend_at(
+                env.price_data,
+                start,
+                lookback=int(trend_lookback),
+                up_pct=float(trend_up_pct),
+                down_pct=float(trend_down_pct),
+            )
         while not terminated:
             action, _ = agent.predict(obs, deterministic=True)
             obs, reward, term, trunc, info = env.step(action)
@@ -412,6 +461,7 @@ def evaluate_agent(
                 if is_bps_f > tb:
                     beat_t += 1
                 regime_diff_t.setdefault(ep_regime, []).append(d)
+                trend_diff_t.setdefault(ep_trend, []).append(d)
             if np.isfinite(vb):
                 valid_vwap += 1
                 diff_v.append(is_bps_f - vb)
@@ -447,5 +497,10 @@ def evaluate_agent(
             r_key = f"mean_rl_minus_twap_bps_regime{regime}"
             out[r_key] = float(np.mean(diffs))
             out[f"n_episodes_regime{regime}"] = len(diffs)
+
+        for tr, diffs in sorted(trend_diff_t.items()):
+            t_key = f"mean_rl_minus_twap_bps_trend{tr}"
+            out[t_key] = float(np.mean(diffs))
+            out[f"n_episodes_trend{tr}"] = len(diffs)
 
     return out

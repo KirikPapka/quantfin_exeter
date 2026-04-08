@@ -5,7 +5,7 @@
 | Kirill Papka | Thomas Nguyen | Harrison Maxwell | Maksim Kitikov (lead) |
 |--------------|---------------|------------------|------------------------|
 
-Institutional **optimal execution** with **regime-aware RL** (PPO/SAC), **classical benchmarks** (TWAP / VWAP / Almgren–Chriss / **Immediate**; optional **USD notional** + participation / Amihud impact and delayed start bar), **NASDAQ ITCH BBO–based order imbalance**, and an **LLM governance** layer (Anthropic Claude, cached for reproducibility). Primary judge-facing demo: **Streamlit**; narrative: **`notebooks/main_notebook.ipynb`**.
+Institutional **optimal execution** with **regime-aware RL** (PPO/SAC), **classical benchmarks** (TWAP / VWAP / Almgren–Chriss / **Immediate**; optional **USD notional** + participation / Amihud impact and delayed start bar), **NASDAQ ITCH BBO–based order imbalance**, and an **LLM governance** layer (Anthropic Claude, cached for reproducibility). Primary judge-facing demo: **Flask web application** (`web/`); narrative: **`notebooks/main_notebook.ipynb`**.
 
 ---
 
@@ -52,8 +52,11 @@ quantfin_exeter/
 ├── environment.yml
 ├── pytest.ini
 ├── .env.example              # copy to .env (gitignored) for API keys
-├── apps/
-│   └── streamlit_app.py      # judge UI: regimes, episode, benchmarks, LLM
+├── web/
+│   ├── app.py                # Flask web application (routes + API)
+│   ├── precompute.py         # case study pre-computation at startup
+│   ├── templates/            # Jinja2 HTML templates (base, home, case study, run)
+│   └── static/               # CSS, JS (Plotly charts), images
 ├── data/
 │   ├── raw/                  # yfinance cache (large files → gitignored)
 │   ├── processed/            # e.g. bbo_daily.parquet (regenerate locally)
@@ -132,18 +135,19 @@ Writes **`data/processed/news_daily_SPY.parquet`** (daily article counts). `load
 | Task | Command |
 |------|---------|
 | Tests | `pytest` or `pytest -q` |
-| Synthetic **flat / up / down** paths (benchmarks + RL) | `python scripts/scenario_benchmarks.py` · random RL by default · **trained:** `python scripts/scenario_benchmarks.py --model models/PPO_....zip --order-notional-usd 5e8` (match `T` / notional / start-bar to training) |
+| Synthetic **flat / up / down** paths (benchmarks + RL) | `python scripts/scenario_benchmarks.py` · random RL by default · **trained:** pass `--model models/PPO_*.zip` and **match training** (`--order-notional-usd`, `--T`, `--residual-bound`, `--relative-is-scale`, …) |
+| Scenarios + **trend regime switch** | Same as above, add `--regime-switch` (optional `--downtrend-model`); mid/downtrend slots use TWAP unless overridden |
 | Finnhub news → daily counts parquet | `python scripts/fetch_finnhub_news.py --symbol SPY` · ETF proxy: add `--etf-proxy --max-constituents 20` |
 | Pipeline + random baseline vs benchmarks | `python scripts/train.py --ticker SPY` |
 | Physical USD order + impact (participation / Amihud) | `python scripts/train.py --ticker SPY --order-notional-usd 10e9 --order-start-bar 0` |
 | Train PPO (slow) | `python scripts/train.py --ticker SPY --train` (default **300k** steps; add `--n-envs 4`, `--eval-freq 25000`, `--append-synthetic flat,up,down` as needed) |
-| Judge UI | `streamlit run apps/streamlit_app.py` |
+| Judge UI (web) | `python -m web.app` → http://localhost:5001 |
 | TensorBoard | `tensorboard --logdir logs` |
 | LLM samples | `python scripts/llm_demo.py` (needs `ANTHROPIC_API_KEY` for live calls) |
 
-**Order size & timing:** With `--order-notional-usd > 0`, the pipeline maps **USD notional → shares** at the arrival (prior close) and applies a shared **participation-style** impact (daily σ, Amihud, bar dollar volume) on each slice for classical benchmarks and for **`OptimalExecutionEnv`** (RL row). `--order-start-bar` is the first bar inside the `T`-day window when trading is allowed; **arrival** for implementation shortfall is the **previous bar’s close**. Notional `0` keeps the legacy abstract unit inventory without that layer. Streamlit exposes the same controls in the sidebar.
+**Order size & timing:** With `--order-notional-usd > 0`, the pipeline maps **USD notional → shares** at the arrival (prior close) and applies a shared **participation-style** impact (daily σ, Amihud, bar dollar volume) on each slice for classical benchmarks and for **`OptimalExecutionEnv`** (RL row). `--order-start-bar` is the first bar inside the `T`-day window when trading is allowed; **arrival** for implementation shortfall is the **previous bar’s close**. Notional `0` keeps the legacy abstract unit inventory without that layer. The Flask web UI exposes the same controls on the Run page.
 
-**Train / eval parity (physical RL):** When notional is positive, `train.py`, `scenario_benchmarks.py`, and Streamlit all attach the same **institutional** env defaults unless you override: **per-step inventory cap** `max_inventory_fraction_per_step=0.33` (disable with `--no-per-step-cap`), **`--is-reward-scale`** default **1.28** on the dollar IS term, and **`--twap-slice-bonus`** default **0.30** (same-bar TWAP-sized reference vs your slice in **`sell_effective_close`** space; set `0` to turn off). Retrain and evaluate with **matching** `--order-notional-usd`, `--order-start-bar`, `T`, and these flags—otherwise the policy sees a different reward than benchmarks/scenarios.
+**Train / eval parity (physical RL):** When notional is positive, `train.py`, `scenario_benchmarks.py`, and the Flask web app all attach the same **institutional** env defaults unless you override: **per-step inventory cap** `max_inventory_fraction_per_step=0.33` (disable with `--no-per-step-cap`), **`--is-reward-scale`** default **1.28** on the dollar IS term, and **`--twap-slice-bonus`** default **0.30** (same-bar TWAP-sized reference vs your slice in **`sell_effective_close`** space; set `0` to turn off). Retrain and evaluate with **matching** `--order-notional-usd`, `--order-start-bar`, `T`, and these flags—otherwise the policy sees a different reward than benchmarks/scenarios.
 
 ### Pushing RL quality further
 
@@ -203,7 +207,7 @@ python scripts/train.py --ticker SPY --train --order-notional-usd 5e6 \
 
 The **benchmark table** still shows classical strategies averaged over **random episode starts** (same as before). That mixes many different price paths, so **RL mean IS** and **TWAP mean IS** are **not** automatically comparable as “who won head-to-head.”
 
-After each run, logs (and Streamlit **Benchmarks** expander) include **path-aligned diagnostics** from `evaluate_agent(..., bench_params=...)`:
+After each run, logs (and the web app **Benchmark Comparison** panel) include **path-aligned diagnostics** from `evaluate_agent(..., bench_params=...)`:
 
 | Field | Meaning |
 |--------|--------|
@@ -224,15 +228,26 @@ python scripts/scenario_benchmarks.py \
   --residual-bound 0.15 --relative-is-scale 2.0 --n-episodes 40
 ```
 
-**Scenario results (best model: residual 0.15 + relative-IS 2.0, SPY $500k notional):**
+Optional trend-based routing (same flags, add `--regime-switch`):
+
+```bash
+python scripts/scenario_benchmarks.py \
+  --model models/PPO_*.zip --regime-switch \
+  --order-notional-usd 5e6 --T 10 \
+  --residual-bound 0.15 --relative-is-scale 2.0 --n-episodes 40
+```
+
+**Scenario results (trained PPO only, path-aligned head-to-head):** checkpoint **`PPO_20260407_224208.zip`**, **`--order-notional-usd 5e6`**, **`T=10`**, **`--residual-bound 0.15`**, **`--relative-is-scale 2.0`**, synthetic panels default **`--step 0.2`** (~0.2%/day up/down), **`--n-episodes 40`**. *RL IS / TWAP IS* from the per-scenario **benchmark table**; *RL-minus-TWAP* from **path-aligned** `evaluate_agent` lines.
 
 | Scenario | RL IS (bps) | TWAP IS (bps) | RL-minus-TWAP (bps) | Beat TWAP | IS-gap Sharpe |
 |----------|-------------|---------------|---------------------|-----------|---------------|
-| **Flat** | -1.16 | -0.82 | **-0.34** | 0% | 0.00 |
-| **Up** (+0.2%/day) | +137.6 | +102.5 | **+35.4** | 100% | 25.10 |
-| **Down** (-0.2%/day) | -162.4 | -118.9 | **-43.0** | 0% | -21.29 |
+| **Flat** | −3.66 | −2.59 | **−1.07** | 0% | 0.00 |
+| **Up** (+0.2%/day) | +135.2 | +100.7 | **+34.7** | 100% | 24.86 |
+| **Down** (−0.2%/day) | −164.9 | −120.7 | **−43.8** | 0% | −21.48 |
 
-**Interpretation:** On a flat path the agent tracks TWAP almost exactly (-0.34 bps gap is negligible). On trending paths, the agent shows a slight back-loading bias learned from SPY's historical upward drift: it holds inventory longer, which pays off in rising markets (+35 bps over TWAP) but is penalized symmetrically in monotone declines (-43 bps). This directional awareness is a net positive on real panels (which carry a mild positive drift), consistent with the **+18.8 bps** real-panel outperformance. The synthetic down scenario is a worst-case stress test (monotonic 80-bar decline) rarely seen in practice over short 10-bar execution windows.
+**Same setup with `--regime-switch`** (mid/downtrend → TWAP; uptrend → same PPO): flat and down panels match TWAP on average (**~0 bps** path-aligned gap; flat **100%** beat TWAP on identical windows in this deterministic strip). **Up** path-aligned gap falls to **~+24.7 bps** (**~87.5%** beat TWAP) because part of the window is classified **mid-trend** and executes TWAP. Use regime switching when you want **TWAP safety** off the strong uptrend; omit it to keep full PPO on all trend buckets.
+
+**Interpretation:** On **flat** synthetic data the policy stays near TWAP with a small negative gap (**−1.1 bps** path-aligned). On **monotone up**, back-loading pays off (**+35 bps** vs TWAP, consistent with README’s historical **+18.8 bps** on real SPY test). On **monotone down**, the same bias hurts (**−44 bps** vs TWAP)—a stress test for short **T=10** windows. **Regime switch** trades some upside on UP for **TWAP-like** behaviour on flat/down in these controlled paths.
 
 ---
 
@@ -244,7 +259,7 @@ python scripts/scenario_benchmarks.py \
 | `ANTHROPIC_API_KEY` | Live Claude calls for `llm_explainer` |
 | `ANTHROPIC_MODEL` | Override model id (e.g. match Stage 1 naming) |
 
-Copy **`.env.example` → `.env`** (see `.gitignore`) if using `python-dotenv` with Streamlit/scripts.
+Copy **`.env.example` → `.env`** (see `.gitignore`) if using `python-dotenv` with the web app or scripts.
 
 ---
 
