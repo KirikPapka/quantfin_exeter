@@ -59,3 +59,6 @@ logs/
 
 # --- Streamlit ---
 .streamlit/secrets.toml
+
+# --- Local clones / Cursor scratch (not part of this repo) ---
+quantfin_exeter-main/

@@ -1,25 +1,40 @@
-# QuantFin Exeter — CFA AI Investment Challenge
+# QuantFin Exeter — AI Investment Challenge 2025-26
 
-**University of Exeter · Competition Group 18**
+**University of Exeter · Team 18**
 
 | Kirill Papka | Thomas Nguyen | Harrison Maxwell | Maksim Kitikov (lead) |
-|--------------|---------------|------------------|------------------------|
+|---|---|---|---|
 
-Institutional **optimal execution** with **regime-aware RL** (PPO/SAC), **classical benchmarks** (TWAP / VWAP / Almgren–Chriss / **Immediate**; optional **USD notional** + participation / Amihud impact and delayed start bar), **NASDAQ ITCH BBO–based order imbalance**, and an **LLM governance** layer (Anthropic Claude, cached for reproducibility). Primary judge-facing demo: **Flask web application** (`web/`); narrative: **`notebooks/main_notebook.ipynb`**.
+> Institutional **optimal trade execution** using **regime-aware reinforcement learning** (PPO), **classical benchmarks** (TWAP / VWAP / Almgren–Chriss / Immediate), **NASDAQ ITCH order-book imbalance**, and an **LLM governance** layer (Anthropic Claude, cached for reproducibility).
 
----
-
-## Requirements
-
-- **Python 3.11** (see `environment.yml`; Torch/SB3 wheels may fail on very new Python versions)
-- Git
+**Live demo:** `python -m web.app` → [http://localhost:5001](http://localhost:5001)
 
 ---
 
-## Quick start
+## Table of contents
+
+1. [Quick start (for judges)](#1-quick-start-for-judges)
+2. [How to obtain data](#2-how-to-obtain-data)
+3. [Repository layout](#3-repository-layout)
+4. [Running the web application](#4-running-the-web-application)
+5. [Training & evaluation](#5-training--evaluation)
+6. [Environment variables](#6-environment-variables)
+7. [AI tools disclosure](#7-ai-tools-disclosure)
+8. [Licence](#8-licence)
+
+---
+
+## 1. Quick start (for judges)
+
+### Requirements
+
+- **Python 3.11** (Torch / SB3 wheels may fail on newer versions)
+- Git, ~4 GB disk (venv + data)
+
+### Setup
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/KirikPapka/quantfin_exeter.git
 cd quantfin_exeter
 
 python3.11 -m venv .venv
@@ -28,273 +43,271 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Point the code at team feature parquet (sibling **`CFADATA`** or custom path):
+### Configure data path
 
 ```bash
-export CFA_DATA_ROOT="/absolute/path/to/CFADATA"
+# Point to the folder that contains features/ (see section 2)
+export CFA_DATA_ROOT="/absolute/path/to/your/data"
 ```
 
-Smoke test:
+Or copy `.env.example` → `.env` and fill in `CFA_DATA_ROOT` there (auto-loaded by the app).
+
+### Run
 
 ```bash
+# Web application (recommended — includes Case Study, Execution Lab, User Manual)
+python -m web.app
+# Open http://localhost:5001
+
+# Quick smoke test
 pytest -q
-python scripts/train.py --ticker SPY
 ```
+
+The web app pre-computes the case study at startup (~10 s) and requires a trained PPO checkpoint under `models/` (see section 5 or use the provided `best_ppo_twap_gap.zip` if included).
 
 ---
 
-## Repository layout
+## 2. How to obtain data
+
+All data sources are **publicly accessible** per competition rules (Rule 4.6). No proprietary terminals required.
+
+### 2.1 Stock price data (required)
+
+**Source:** any free stock API (e.g. Yahoo Finance via `yfinance`, Alpha Vantage, Polygon free tier, or a CRSP educational extract).
+
+The pipeline expects **per-split parquet files** under `$CFA_DATA_ROOT/features/`:
 
 ```
-quantfin_exeter/
-├── README.md                 # this file
-├── requirements.txt
-├── environment.yml
-├── pytest.ini
-├── .env.example              # copy to .env (gitignored) for API keys
-├── web/
-│   ├── app.py                # Flask web application (routes + API)
-│   ├── precompute.py         # case study pre-computation at startup
-│   ├── templates/            # Jinja2 HTML templates (base, home, case study, run)
-│   └── static/               # CSS, JS (Plotly charts), images
-├── data/
-│   ├── raw/                  # yfinance cache (large files → gitignored)
-│   ├── processed/            # e.g. bbo_daily.parquet (regenerate locally)
-│   └── cached_llm/           # commit JSON caches for judges (no API key)
-├── notebooks/
-│   └── main_notebook.ipynb   # narrative / figures
-├── scripts/
-│   ├── train.py              # regime → env → eval [→ optional PPO train]
-│   ├── build_bbo_daily.py    # BBO CSV → daily OBI parquet
-│   └── llm_demo.py           # sample governance calls
-├── src/
-│   ├── bbo_pipeline.py       # ITCH BBO 1m → daily imbalance
-│   ├── data_pipeline.py      # parquet load + BBO merge
-│   ├── regime_detector.py    # HMM (+ vol fallback), optional 3rd feature (OBI)
-│   ├── trading_env.py        # Gymnasium execution env
-│   ├── rl_agent.py           # SB3 train / evaluate
-│   ├── benchmarks.py
-│   ├── llm_explainer.py
-│   ├── ui_rollout.py
-│   └── utils.py
-├── models/                   # saved PPO/SAC .zip (gitignored by default)
-├── tests/
-└── logs/                     # TensorBoard (gitignored)
+features/
+├── features_train.parquet   (2018-01-01 to 2022-12-31)
+├── features_val.parquet     (2023-01-01 to 2023-12-31)
+└── features_test.parquet    (2024-01-01 to 2024-12-31)
 ```
 
----
+Required columns (CRSP naming):
 
-## Data setup
+| Column | Description |
+|---|---|
+| `permno` | Security identifier |
+| `date` | Trading date |
+| `prc` | Closing price |
+| `openprc` | Opening price |
+| `high` | Daily high |
+| `low` | Daily low |
+| `vol` | Daily volume (shares) |
+| `shrout` | Shares outstanding |
+| `ret`, `retx` | Total & ex-dividend return |
+| `ticker` | Ticker symbol (e.g. `SPY`) |
 
-### CRSP-style features (required)
+The code builds derived features automatically: `realised_vol_20`, `sigma_daily`, `amihud_illiquidity`, `bid_ask_proxy`, `volume_to_spread`, `vix_aligned`.
 
-Parquet splits under **`$CFA_DATA_ROOT/features/`**:
+### 2.2 VIX data (included in features or downloadable)
 
-- `features_train.parquet`, `features_val.parquet`, `features_test.parquet`
+**Source:** [Cboe VIX historical data](https://www.cboe.com/tradable-products/vix/vix-historical-data/) — free CSV download, 1990–present. The pipeline expects a `vix` column in the parquet or merges it from a separate file.
 
-If the repo lives next to shared **`CFADATA`**, the default `CFA_DATA_ROOT` is resolved automatically; otherwise set **`export CFA_DATA_ROOT=...`**.
+### 2.3 NASDAQ ITCH BBO order imbalance (optional, recommended)
 
-### BBO / order imbalance (optional but recommended)
+**Source:** [Databento](https://databento.com/portal/browse) — NASDAQ TotalView-ITCH **BBO-1m** schema.
 
-- Raw file: **`CFADATA/raw/XNAS-*/xnas-itch-*bbo-1m.csv`** (team NASDAQ ITCH **top-of-book 1-minute** extract).
-- **Coverage starts 2019-01-02** (no BBO before that). Merged panel uses **neutral OBI (0)** for earlier daily rows.
+**How to obtain:**
 
-Build processed daily panel:
+1. Go to [databento.com/portal/browse](https://databento.com/portal/browse)
+2. Register for a free account — new accounts receive **$125 USD free credit**
+3. Search for **NASDAQ TotalView-ITCH**, select **BBO-1m** schema
+4. Purchase data for **SPY** from **2019-01-02 to 2024-12-31** (optionally also **AAPL**)
+5. Download the CSV and place under `$CFA_DATA_ROOT/raw/`
+
+**Build the daily panel:**
 
 ```bash
-export CFA_DATA_ROOT="/path/to/CFADATA"
-python scripts/build_bbo_daily.py --symbols SPY AAPL
+python scripts/build_bbo_daily.py --symbols SPY
+# writes data/processed/bbo_daily.parquet
 ```
 
-Writes **`data/processed/bbo_daily.parquet`**. Training/UI merge this when `use_bbo=True` (default in `load_split`; disable with **`python scripts/train.py --no-bbo`** or Streamlit checkbox).
+Coverage starts **2019-01-02**; earlier rows use neutral OBI (0). The pipeline merges this automatically when `bbo_daily.parquet` exists.
 
-**News (Finnhub, free API):** Add **`FINNHUB_API_KEY`** to `.env` (register at [finnhub.io/register](https://finnhub.io/register)), then:
+### 2.4 News sentiment counts (optional)
+
+**Source:** [Finnhub](https://finnhub.io/register) — free tier, no credit card required.
+
+1. Register at [finnhub.io/register](https://finnhub.io/register) to get a free API key
+2. Add `FINNHUB_API_KEY=your_key` to `.env`
+3. Fetch news:
 
 ```bash
 python scripts/fetch_finnhub_news.py --symbol SPY
-```
-
-For **SPY** (and other ETFs), direct company-news is often empty; use **holdings-weighted** constituent news (Finnhub `stock/etf/holdings`, or a built-in fallback slice):
-
-```bash
+# or for ETF holdings-weighted proxy:
 python scripts/fetch_finnhub_news.py --symbol SPY --etf-proxy --max-constituents 20
 ```
 
-That issues roughly `(years of chunks) × (constituents)` calls — use **`--sleep 1.2`** and a narrower **`--from-date`** if you hit 429.
+Writes `data/processed/news_daily_SPY.parquet`. The RL observation includes z-scored daily news intensity when this file exists.
 
-Uses **~1 request/second** pacing and **retries on HTTP 429**. If you still hit limits, run again later or use `--sleep 2` / smaller `--from-date` ranges.
+### 2.5 LLM governance (Anthropic Claude)
 
-Writes **`data/processed/news_daily_SPY.parquet`** (daily article counts). `load_split` merges **`news_count`** when the file exists; the RL observation includes **z-scored news intensity** plus a **TWAP schedule gap** (inventory vs equal schedule). **`--no-news`** on `train.py` skips the merge. **Retrain** policies after this change (observation size **9**).
+**Cost to reproduce: < $20 USD** (well within the competition threshold).
 
-**Do not commit** multi-GB raw CSVs; keep them on shared drive / Box and document paths in team notes.
+- Cached responses are committed in `data/cached_llm/*.json` — judges can reproduce all governance text **without any API key or cost**.
+- For live calls: add `ANTHROPIC_API_KEY=your_key` to `.env`. Model: `claude-sonnet-4-20250514`.
+- Without an API key, an offline template fallback generates and caches deterministic explanations.
 
 ---
 
-## Commands cheat sheet
+## 3. Repository layout
 
-| Task | Command |
-|------|---------|
-| Tests | `pytest` or `pytest -q` |
-| Synthetic **flat / up / down** paths (benchmarks + RL) | `python scripts/scenario_benchmarks.py` · random RL by default · **trained:** pass `--model models/PPO_*.zip` and **match training** (`--order-notional-usd`, `--T`, `--residual-bound`, `--relative-is-scale`, …) |
-| Scenarios + **trend regime switch** | Same as above, add `--regime-switch` (optional `--downtrend-model`); mid/downtrend slots use TWAP unless overridden |
-| Finnhub news → daily counts parquet | `python scripts/fetch_finnhub_news.py --symbol SPY` · ETF proxy: add `--etf-proxy --max-constituents 20` |
-| Pipeline + random baseline vs benchmarks | `python scripts/train.py --ticker SPY` |
-| Physical USD order + impact (participation / Amihud) | `python scripts/train.py --ticker SPY --order-notional-usd 10e9 --order-start-bar 0` |
-| Train PPO (slow) | `python scripts/train.py --ticker SPY --train` (default **300k** steps; add `--n-envs 4`, `--eval-freq 25000`, `--append-synthetic flat,up,down` as needed) |
-| Judge UI (web) | `python -m web.app` → http://localhost:5001 |
-| TensorBoard | `tensorboard --logdir logs` |
-| LLM samples | `python scripts/llm_demo.py` (needs `ANTHROPIC_API_KEY` for live calls) |
+```
+quantfin_exeter/
+├── README.md
+├── LICENSE                     # MIT License (competition requirement)
+├── requirements.txt
+├── environment.yml
+├── .env.example                # copy to .env, fill in keys
+├── web/
+│   ├── app.py                  # Flask routes + API
+│   ├── precompute.py           # Case study pre-computation
+│   ├── templates/              # Jinja2: home, case study, run, user manual
+│   └── static/                 # CSS, JS (Plotly charts)
+├── data/
+│   ├── raw/                    # Large files (gitignored)
+│   ├── processed/              # bbo_daily.parquet, news (gitignored)
+│   ├── features/               # Train/val/test parquet (via CFA_DATA_ROOT)
+│   └── cached_llm/             # Committed JSON caches for judges
+├── notebooks/
+│   └── main_notebook.ipynb     # Narrative + figures
+├── scripts/
+│   ├── train.py                # Regime → env → eval [→ PPO train]
+│   ├── scenario_benchmarks.py  # Controlled flat/up/down scenarios
+│   ├── build_bbo_daily.py      # BBO CSV → daily OBI parquet
+│   ├── fetch_finnhub_news.py   # Finnhub → daily news counts
+│   └── llm_demo.py             # Governance demo
+├── src/
+│   ├── data_pipeline.py        # Parquet load + BBO/news merge
+│   ├── regime_detector.py      # HMM (+ vol fallback)
+│   ├── trading_env.py          # Gymnasium optimal execution env
+│   ├── rl_agent.py             # SB3 train / evaluate
+│   ├── benchmarks.py           # TWAP, VWAP, A-C, Immediate
+│   ├── execution_impact.py     # Participation-style market impact
+│   ├── trend_classifier.py     # Rolling return trend labels
+│   ├── regime_switching.py     # Trend-based policy routing
+│   ├── llm_explainer.py        # Claude governance + cache
+│   ├── ui_rollout.py           # Single-episode rollout for UI
+│   └── utils.py
+├── models/                     # PPO .zip checkpoints (gitignored)
+├── tests/
+└── logs/                       # TensorBoard (gitignored)
+```
 
-**Order size & timing:** With `--order-notional-usd > 0`, the pipeline maps **USD notional → shares** at the arrival (prior close) and applies a shared **participation-style** impact (daily σ, Amihud, bar dollar volume) on each slice for classical benchmarks and for **`OptimalExecutionEnv`** (RL row). `--order-start-bar` is the first bar inside the `T`-day window when trading is allowed; **arrival** for implementation shortfall is the **previous bar’s close**. Notional `0` keeps the legacy abstract unit inventory without that layer. The Flask web UI exposes the same controls on the Run page.
+---
 
-**Train / eval parity (physical RL):** When notional is positive, `train.py`, `scenario_benchmarks.py`, and the Flask web app all attach the same **institutional** env defaults unless you override: **per-step inventory cap** `max_inventory_fraction_per_step=0.33` (disable with `--no-per-step-cap`), **`--is-reward-scale`** default **1.28** on the dollar IS term, and **`--twap-slice-bonus`** default **0.30** (same-bar TWAP-sized reference vs your slice in **`sell_effective_close`** space; set `0` to turn off). Retrain and evaluate with **matching** `--order-notional-usd`, `--order-start-bar`, `T`, and these flags—otherwise the policy sees a different reward than benchmarks/scenarios.
+## 4. Running the web application
 
-### Pushing RL quality further
+```bash
+python -m web.app
+# Starts on http://localhost:5001
+```
 
-#### TWAP-residual action and relative-IS reward
+**Pages:**
 
-The biggest performance lever is the **TWAP-residual action parameterization** (`--residual-bound`). Instead of learning a raw sell fraction from scratch, the policy outputs a small deviation from the TWAP schedule: action `a = 0.5` equals exact TWAP, bounded by `+/- residual_bound`. This solves the cold-start exploration problem and gives the agent a safe baseline to improve upon.
+| URL | Description |
+|---|---|
+| `/` | Home — project overview and pipeline diagram |
+| `/case-study` | Pre-computed SPY sell execution walkthrough with benchmark results |
+| `/run` | Interactive Execution Lab — configure and run the full pipeline |
+| `/user-manual` | Methodology, formulas (KaTeX), and configuration reference |
 
-On top of that, **relative-IS reward** (`--relative-is-scale`) replaces the absolute dollar-IS reward with a per-bar "improvement over TWAP" signal, directly aligning training with the evaluation metric.
+---
 
-**Experimental results on SPY test (300k steps, notional $5M, seed 42):**
+## 5. Training & evaluation
 
-| Configuration | mean_RL_minus_TWAP_bps | pct_beat_TWAP | IS-gap Sharpe | 95% CI |
-|---------------|----------------------|---------------|---------------|--------|
-| Tightened hparams only | -13.6 | 34% | -0.23 | [-21.8, -5.3] |
-| + `--residual-bound 0.15` | **+13.5** | 66% | 0.31 | [+7.5, +19.5] |
-| + `--relative-is-scale 2.0` | **+18.8** | 67.5% | 0.35 | [+11.2, +26.3] |
-| + `--bc-warmstart` | +16.4 | 66% | 0.33 | [+9.5, +23.2] |
+### Quick eval (no training)
 
-The residual action alone swung the result by ~27 bps. Adding relative-IS reward gave another ~5 bps. BC warmstart added no benefit here because the residual parameterization already starts the policy at TWAP.
+```bash
+python scripts/train.py --ticker SPY --order-notional-usd 5e6
+```
 
-The agent gains more in **regime 1** (high-vol, +44 bps) than regime 0 (low-vol, +15 bps), consistent with there being more timing alpha in volatile markets.
-
-**Recommended production command:**
+### Train PPO
 
 ```bash
 python scripts/train.py --ticker SPY --train --order-notional-usd 5e6 \
   --residual-bound 0.15 --relative-is-scale 2.0 --timesteps 300000
 ```
 
-#### Additional levers
+Saves `models/best_ppo_twap_gap.zip` when the path-aligned TWAP gap improves during training.
 
-| Lever | Notes |
-|--------|--------|
-| **Longer train** | `--timesteps 600000` or `1000000`; use TensorBoard (`tensorboard --logdir logs`). |
-| **Vectorized rollouts** | `--n-envs 4` uses `DummyVecEnv` so each PPO/SAC update sees more diverse `(start, T)` windows. |
-| **Best TWAP-gap checkpoint** | While `--train`, every `--eval-freq` steps (default **25000**), evaluate on **val** (`features_val.parquet`) or **test** if val missing; save **`models/best_ppo_twap_gap.zip`** or **`best_sac_twap_gap.zip`** when **`mean_RL_minus_TWAP_bps`** improves. Set **`--eval-freq 0`** to disable. |
-| **TWAP-residual action** | `--residual-bound 0.15` constrains the policy to deviate at most +/-15% from TWAP per bar. |
-| **Relative-IS reward** | `--relative-is-scale 2.0` makes per-bar improvement over TWAP the primary reward signal. |
-| **BC warmstart** | `--bc-warmstart` pre-trains the policy to imitate TWAP before RL fine-tuning. Useful when not using residual action. |
-| **Ensemble** | `--ensemble 3` trains 3 models with different seeds and aggregates via median action at inference. |
-| **Offline CQL** | `--cql` trains with Conservative Q-Learning on a dataset of TWAP + perturbed rollouts (requires `d3rlpy`). |
-| **IS terminal bonus** | `--eval-is-coef 0.04` adds a terminal term aligned with `evaluate_agent` IS (try **0.02-0.08**; **0** = off). |
-| **Synthetic curriculum** | `--append-synthetic flat,up,down` appends scenario strips to the **train** panel after HMM labeling; tune length with `--synthetic-bars` (default **120**). |
-| **LR schedule** | `--lr-schedule linear` (default) decays LR from 3e-4 to 5e-5; `constant` holds at 2.5e-4. |
-| **Fixed eval windows** | `--fixed-eval-starts path.json` loads deterministic eval windows for reproducible comparisons across runs. Auto-generated if not provided. |
+### Key training flags
 
-**Hyperparameter sweep** (one knob at a time; keep notional, `T`, and start-bar fixed): (1) `--lam-risk` 0.10 / 0.22 / 0.28, (2) `--twap-slice-bonus` 0 / 0.30 / 0.60, (3) `--is-reward-scale` 1.0 / 1.15 / 1.28, (4) `--max-inventory-frac-per-step` 0.15 / 0.25 / 0.33, (5) `--residual-bound` 0.10 / 0.15 / 0.20, (6) `--relative-is-scale` 0 / 1.0 / 2.0. Compare `mean_RL_minus_TWAP_bps`, `pct_beat_TWAP_IS`, `IS-gap Sharpe`, and the `95% CI` on test after each run.
+| Flag | Default | Purpose |
+|---|---|---|
+| `--order-notional-usd` | 0 | USD order size (>0 enables physical mode) |
+| `--residual-bound` | — | TWAP-residual action (e.g. 0.15 = ±15% from TWAP) |
+| `--relative-is-scale` | 0 | Per-bar improvement-over-TWAP reward scaling |
+| `--timesteps` | 300000 | Training steps |
+| `--n-envs` | 1 | Vectorized rollouts |
+| `--eval-freq` | 25000 | Evaluate & save best checkpoint every N steps |
 
-```bash
-python scripts/train.py --ticker SPY --train --order-notional-usd 5e6 \
-  --residual-bound 0.15 --relative-is-scale 2.0 \
-  --n-envs 4 --timesteps 600000 --eval-freq 25000 \
-  --append-synthetic flat,up,down
-```
-
-### RL evaluation (path-aligned)
-
-The **benchmark table** still shows classical strategies averaged over **random episode starts** (same as before). That mixes many different price paths, so **RL mean IS** and **TWAP mean IS** are **not** automatically comparable as “who won head-to-head.”
-
-After each run, logs (and the web app **Benchmark Comparison** panel) include **path-aligned diagnostics** from `evaluate_agent(..., bench_params=...)`:
-
-| Field | Meaning |
-|--------|--------|
-| **mean_episode_return** | Average sum of rewards per episode (use to compare **trained vs random** policy on the same env). |
-| **mean_twap_is_bps (paths)** | TWAP implementation shortfall (bps) averaged over the **exact** `(start, T)` windows used for each RL episode. |
-| **mean_vwap_is_bps (paths)** | Same for VWAP. |
-| **mean_RL_minus_TWAP_bps** | Mean of (RL IS bps − TWAP IS bps) on those **same** windows. **> 0** ⇒ RL achieved a **higher** average sell price vs arrival than TWAP on those paths (under your IS sign). |
-| **mean_RL_minus_VWAP_bps** | Same vs VWAP. |
-| **pct_beat_TWAP_IS** | Share of episodes where RL IS bps **>** TWAP IS bps on the identical window. |
-
-**How to judge RL:** (1) **Episode return** vs random baseline with the same flags. (2) **pct_beat_TWAP_IS** and **mean_RL_minus_TWAP_bps** for a fair schedule comparison on matched paths. (3) **Completion rate**. The aggregate benchmark row remains useful for judges alongside classical baselines, but **head-to-head** metrics above are the correct read for “did RL beat TWAP?”
-
-**Controlled scenarios:** `src/scenario_paths.py` builds long **flat**, **monotone up**, and **monotone down** daily panels. `scripts/scenario_benchmarks.py` runs the same benchmark machinery on each. Pass **`--model path/to/PPO_*.zip`** with the **same flags used during training** (`--T`, `--order-notional-usd`, `--residual-bound`, `--relative-is-scale`, etc.) so the environment interprets actions correctly.
+### Scenario benchmarks
 
 ```bash
 python scripts/scenario_benchmarks.py \
-  --model models/PPO_*.zip --order-notional-usd 5e6 --T 10 \
-  --residual-bound 0.15 --relative-is-scale 2.0 --n-episodes 40
-```
-
-Optional trend-based routing (same flags, add `--regime-switch`):
-
-```bash
-python scripts/scenario_benchmarks.py \
-  --model models/PPO_*.zip --regime-switch \
+  --model models/best_ppo_twap_gap.zip \
   --order-notional-usd 5e6 --T 10 \
-  --residual-bound 0.15 --relative-is-scale 2.0 --n-episodes 40
+  --residual-bound 0.15 --relative-is-scale 2.0
 ```
 
-**Scenario results (trained PPO only, path-aligned head-to-head):** checkpoint **`PPO_20260407_224208.zip`**, **`--order-notional-usd 5e6`**, **`T=10`**, **`--residual-bound 0.15`**, **`--relative-is-scale 2.0`**, synthetic panels default **`--step 0.2`** (~0.2%/day up/down), **`--n-episodes 40`**. *RL IS / TWAP IS* from the per-scenario **benchmark table**; *RL-minus-TWAP* from **path-aligned** `evaluate_agent` lines.
+### Path-aligned evaluation
 
-| Scenario | RL IS (bps) | TWAP IS (bps) | RL-minus-TWAP (bps) | Beat TWAP | IS-gap Sharpe |
-|----------|-------------|---------------|---------------------|-----------|---------------|
-| **Flat** | −3.66 | −2.59 | **−1.07** | 0% | 0.00 |
-| **Up** (+0.2%/day) | +135.2 | +100.7 | **+34.7** | 100% | 24.86 |
-| **Down** (−0.2%/day) | −164.9 | −120.7 | **−43.8** | 0% | −21.48 |
+The benchmark table uses random episode starts. For head-to-head RL vs TWAP comparison, the system computes **path-aligned metrics** on identical `(start, T)` windows:
 
-**Same setup with `--regime-switch`** (mid/downtrend → TWAP; uptrend → same PPO): flat and down panels match TWAP on average (**~0 bps** path-aligned gap; flat **100%** beat TWAP on identical windows in this deterministic strip). **Up** path-aligned gap falls to **~+24.7 bps** (**~87.5%** beat TWAP) because part of the window is classified **mid-trend** and executes TWAP. Use regime switching when you want **TWAP safety** off the strong uptrend; omit it to keep full PPO on all trend buckets.
-
-**Interpretation:** On **flat** synthetic data the policy stays near TWAP with a small negative gap (**−1.1 bps** path-aligned). On **monotone up**, back-loading pays off (**+35 bps** vs TWAP, consistent with README’s historical **+18.8 bps** on real SPY test). On **monotone down**, the same bias hurts (**−44 bps** vs TWAP)—a stress test for short **T=10** windows. **Regime switch** trades some upside on UP for **TWAP-like** behaviour on flat/down in these controlled paths.
+| Metric | Meaning |
+|---|---|
+| `mean_RL_minus_TWAP_bps` | Mean IS gap on matched windows (> 0 = RL wins) |
+| `pct_beat_TWAP_IS` | Share of episodes where RL IS > TWAP IS |
+| `IS-gap Sharpe` | Sharpe ratio of the per-episode IS gap |
 
 ---
 
-## Environment variables
+## 6. Environment variables
 
-| Variable | Purpose |
-|----------|---------|
-| `CFA_DATA_ROOT` | Root folder containing `features/` and optionally `raw/XNAS-*/` |
-| `ANTHROPIC_API_KEY` | Live Claude calls for `llm_explainer` |
-| `ANTHROPIC_MODEL` | Override model id (e.g. match Stage 1 naming) |
+Copy `.env.example` → `.env`:
 
-Copy **`.env.example` → `.env`** (see `.gitignore`) if using `python-dotenv` with the web app or scripts.
-
----
-
-## What to commit vs keep local
-
-**Commit**
-
-- All **`src/`**, **`scripts/`**, **`apps/`**, **`tests/`**, **`notebooks/`** (strip huge outputs if needed)
-- **`data/cached_llm/*.json`** so judges reproduce explanations without API cost
-- **`.env.example`**, **`requirements.txt`**, **`README.md`**, **`.gitignore`**
-
-**Do not commit**
-
-- **`.env`**, API keys
-- **`.venv/`**, `__pycache__/`, `.pytest_cache/`
-- **Large raw data** under `data/raw/` or full BBO CSV
-- **Trained weights** if policy is huge (optional: use Git LFS or share checkpoints separately); default `.gitignore` ignores `models/*.zip`
+| Variable | Required | Purpose |
+|---|---|---|
+| `CFA_DATA_ROOT` | Yes | Folder containing `features/` parquet splits |
+| `ANTHROPIC_API_KEY` | No | Live Claude calls (cached responses work without) |
+| `ANTHROPIC_MODEL` | No | Override model (default: `claude-sonnet-4-20250514`) |
+| `FINNHUB_API_KEY` | No | News data fetch ([free registration](https://finnhub.io/register)) |
 
 ---
 
-## Team workflow (suggested)
+## 7. AI tools disclosure
 
-1. Branch from `main`, small PRs.
-2. Commit messages: **`[module] short description`** (e.g. `[regime] fix HMM fallback`).
-3. Run **`pytest`** before pushing.
-4. Align notebook kernel with **project `.venv`** (Python 3.11 + `requirements.txt`).
+Per competition Rule 4.1 (Transparency) and Rule 4.5 (Disclosure):
+
+### AI as development assistant
+
+- **Cursor IDE with Claude and Composer** — used for code writing, debugging, and refactoring across the codebase.
+
+
+All generated code was reviewed, understood, and can be explained by the team.
+
+### AI as component of the solution
+
+- **Anthropic Claude** (`claude-sonnet-4-20250514`) — integrated into the system for **LLM governance** (explaining execution decisions in plain English for compliance). Called via API at runtime; responses cached in `data/cached_llm/*.json`.
+- **Reproduction cost: < $20 USD.** Cached responses are committed so judges can verify without API cost.
+- Without an API key, an **offline template** generates deterministic explanations automatically.
+
+### Data created as part of the solution
+
+- **Derived features** (volatility, Amihud, bid-ask proxy) — computed from public stock data in `data_pipeline.py`.
+- **BBO daily order imbalance** — aggregated from NASDAQ ITCH BBO-1m (Databento, publicly purchasable) in `build_bbo_daily.py`.
+- **News daily counts** — fetched from Finnhub free API in `fetch_finnhub_news.py`.
+- **LLM cache files** — committed JSON responses from Claude governance calls.
 
 ---
 
-## Licence / competition use
+## 8. Licence
 
-Built for the **CFA AI Investment Challenge**. Cite the team Stage 1–2 submission where required. External data vendors (CRSP, market data) remain subject to their own terms.
+Released under the **MIT License** as required by competition rules (Rule 1.5).
 
----
+Built for the **CFA Institute AI Investment Challenge 2025–26** (CFA Society United Kingdom).
 
-## Support
-
-Primary contact (Stage 1): **mk859@exeter.ac.uk** (Maksim Kitikov). For code questions, use team chat / issues on your shared Git host.
+**Contact:** mk859@exeter.ac.uk (Maksim Kitikov)
