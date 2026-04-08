@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from .bbo_pipeline import load_bbo_daily, merge_bbo_into_features
+from .news_features import merge_news_daily
 from .utils import default_data_root, project_root
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ def load_features_parquet(path: Path, ticker: Optional[str] = None) -> pd.DataFr
     close = out["prc"].astype(float)
     high = out["high"].astype(float)
     low = out["low"].astype(float)
+    open_px = out["oprc"].astype(float) if "oprc" in out.columns else close
     vol = out["vol"].astype(float).replace(0, np.nan)
     amihud = (
         out["amihud_20d"]
@@ -47,6 +49,9 @@ def load_features_parquet(path: Path, ticker: Optional[str] = None) -> pd.DataFr
     volume_to_spread = vol / (bid_ask_proxy + EPS)
     panel = pd.DataFrame(
         {
+            "Open": open_px,
+            "High": high,
+            "Low": low,
             "Close": close,
             "Volume": vol,
             "realised_vol_20": rv,
@@ -75,6 +80,8 @@ def load_split(
     ticker: Optional[str] = "SPY",
     use_bbo: bool = True,
     bbo_parquet: Optional[Path] = None,
+    use_news: bool = True,
+    news_parquet: Optional[Path] = None,
 ) -> pd.DataFrame:
     data_root = data_root or default_data_root()
     path = data_root / "features" / f"features_{split}.parquet"
@@ -91,5 +98,20 @@ def load_split(
             logger.warning(
                 "No BBO parquet at %s — run: python scripts/build_bbo_daily.py",
                 project_root() / "data" / "processed" / "bbo_daily.parquet",
+            )
+    if use_news and ticker:
+        np_path = news_parquet or (
+            project_root() / "data" / "processed" / f"news_daily_{ticker}.parquet"
+        )
+        if np_path.is_file():
+            try:
+                panel = merge_news_daily(panel, np_path)
+            except ValueError as e:
+                logger.warning("Skipping news merge (%s): %s", np_path.name, e)
+        else:
+            logger.info(
+                "No %s — optional: python scripts/fetch_finnhub_news.py --symbol %s",
+                np_path.name,
+                ticker,
             )
     return panel

@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}Execution Lab{% endblock %}
+
+{% block content %}
+<div class="page-light">
+
+<!-- Hero Banner -->
+<section class="bg-navy-950 pt-28 pb-12 relative overflow-hidden">
+  <div class="absolute inset-0 opacity-30">
+    <div class="absolute inset-0" style="background:radial-gradient(ellipse 50% 60% at 30% 50%, rgba(99,179,237,0.1), transparent 60%)"></div>
+  </div>
+  <div class="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
+    <p class="text-accent-400 font-semibold text-sm uppercase tracking-wider mb-3">Interactive</p>
+    <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">Execution Lab</h1>
+    <p class="text-navy-300 text-lg max-w-2xl">
+      Configure parameters and run the full pipeline: regime detection, RL episode, benchmark comparison, and LLM governance.
+    </p>
+  </div>
+</section>
+
+<div class="max-w-7xl mx-auto px-6 lg:px-8 py-10">
+  <div class="grid lg:grid-cols-12 gap-8">
+
+    <!-- ====== LEFT: Configuration Panel ====== -->
+    <div class="lg:col-span-3">
+      <div class="config-panel sticky top-24">
+        <h3 class="font-bold text-navy-900 text-sm uppercase tracking-wider mb-5">Configuration</h3>
+
+        <div class="space-y-4">
+          <div>
+            <label class="config-label" for="split">Data Split</label>
+            <select id="split" name="split" class="config-select">
+              <option value="test" selected>Test</option>
+              <option value="val">Validation</option>
+              <option value="train">Train</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="config-label" for="n_reg">HMM States</label>
+            <select id="n_reg" name="n_reg" class="config-select">
+              <option value="2" selected>2 (Calm / Volatile)</option>
+              <option value="3">3 (Calm / Elevated / Stressed)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="config-label" for="horizon">Horizon T
+              <span id="horizon-val" class="text-accent-600 font-bold ml-1">10</span>
+            </label>
+            <input type="range" id="horizon" name="horizon" min="3" max="30" value="10" class="w-full accent-amber-500"
+                   oninput="document.getElementById('horizon-val').textContent=this.value" />
+          </div>
+
+          <div>
+            <label class="config-label" for="policy">Policy</label>
+            <select id="policy" name="policy" class="config-select">
+              {% for m in models %}
+              <option value="{{ m.path }}">{{ m.name }}</option>
+              {% endfor %}
+              <option value="random">Random Agent</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="config-label" for="seed">Episode Seed</label>
+            <input type="number" id="seed" name="seed" value="42" min="0" max="999999" class="config-input" />
+          </div>
+
+          <div>
+            <label class="config-label" for="n_episodes">Benchmark Episodes</label>
+            <input type="number" id="n_episodes" name="n_episodes" value="200" min="5" max="500" class="config-input" />
+          </div>
+        </div>
+
+        <div class="mt-6 space-y-3">
+          <button class="btn-primary w-full flex items-center justify-center gap-2"
+                  hx-post="/api/run-all"
+                  hx-include="#split, #n_reg, #horizon, #policy, #seed, #n_episodes"
+                  hx-target="#results-container"
+                  hx-indicator="#run-all-spinner">
+            <span class="btn-label">Run Full Pipeline</span>
+            <span class="htmx-indicator"><span class="spinner"></span></span>
+          </button>
+          <div class="grid grid-cols-2 gap-2">
+            <button class="btn-secondary flex items-center justify-center gap-1 text-xs"
+                    hx-post="/api/regimes"
+                    hx-include="#split, #n_reg"
+                    hx-target="#regime-result"
+                    hx-indicator="#regime-spinner">
+              <span class="btn-label">Regimes</span>
+              <span id="regime-spinner" class="htmx-indicator"><span class="spinner" style="border-color:rgba(0,0,0,0.15);border-top-color:#334e68;width:14px;height:14px;"></span></span>
+            </button>
+            <button class="btn-secondary flex items-center justify-center gap-1 text-xs"
+                    hx-post="/api/episode"
+                    hx-include="#split, #n_reg, #horizon, #policy, #seed"
+                    hx-target="#episode-result"
+                    hx-indicator="#episode-spinner">
+              <span class="btn-label">Episode</span>
+              <span id="episode-spinner" class="htmx-indicator"><span class="spinner" style="border-color:rgba(0,0,0,0.15);border-top-color:#334e68;width:14px;height:14px;"></span></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== RIGHT: Results ====== -->
+    <div class="lg:col-span-9" id="results-container">
+
+      <!-- Regime Detection -->
+      <div class="result-panel mb-6">
+        <h3 class="font-bold text-navy-900 mb-4 flex items-center gap-2">
+          <div class="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center">
+            <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+          </div>
+          Regime Detection
+        </h3>
+        <div id="regime-result">
+          <div class="result-placeholder">
+            <svg class="w-10 h-10 mb-3 text-navy-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3" /></svg>
+            <p class="text-sm">Click <strong>Run Full Pipeline</strong> or <strong>Regimes</strong> to detect market states</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Episode Rollout -->
+      <div class="result-panel mb-6">
+        <h3 class="font-bold text-navy-900 mb-4 flex items-center gap-2">
+          <div class="w-6 h-6 rounded bg-blue-100 flex items-center justify-center">
+            <svg class="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" /></svg>
+          </div>
+          Episode Rollout
+        </h3>
+        <div id="episode-result">
+          <div class="result-placeholder">
+            <svg class="w-10 h-10 mb-3 text-navy-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+            <p class="text-sm">Click <strong>Run Full Pipeline</strong> or <strong>Episode</strong> to execute a rollout</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Benchmarks -->
+      <div class="result-panel mb-6">
+        <h3 class="font-bold text-navy-900 mb-4 flex items-center gap-2">
+          <div class="w-6 h-6 rounded bg-purple-100 flex items-center justify-center">
+            <svg class="w-3.5 h-3.5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75z" /></svg>
+          </div>
+          Benchmark Comparison
+        </h3>
+        <div id="benchmark-result">
+          <div class="result-placeholder">
+            <svg class="w-10 h-10 mb-3 text-navy-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>
+            <p class="text-sm">Click <strong>Run Full Pipeline</strong> to compare against TWAP, VWAP, and more</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Governance -->
+      <div class="result-panel">
+        <h3 class="font-bold text-navy-900 mb-4 flex items-center gap-2">
+          <div class="w-6 h-6 rounded bg-amber-100 flex items-center justify-center">
+            <svg class="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>
+          </div>
+          AI Governance
+        </h3>
+        <div id="governance-result">
+          <div class="result-placeholder">
+            <svg class="w-10 h-10 mb-3 text-navy-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076" /></svg>
+            <p class="text-sm">Click <strong>Run Full Pipeline</strong> to generate an LLM explanation</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script src="{{ url_for('static', filename='js/run.js') }}"></script>
+{% endblock %}

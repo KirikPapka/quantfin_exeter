@@ -5,7 +5,7 @@
 | Kirill Papka | Thomas Nguyen | Harrison Maxwell | Maksim Kitikov (lead) |
 |--------------|---------------|------------------|------------------------|
 
-Institutional **optimal execution** with **regime-aware RL** (PPO/SAC), **classical benchmarks** (TWAP / VWAP / Almgren–Chriss), **NASDAQ ITCH BBO–based order imbalance**, and an **LLM governance** layer (Anthropic Claude, cached for reproducibility). Primary judge-facing demo: **Streamlit**; narrative: **`notebooks/main_notebook.ipynb`**.
+Institutional **optimal execution** with **regime-aware RL** (PPO/SAC), **classical benchmarks** (TWAP / VWAP / Almgren–Chriss / **Immediate**; optional **USD notional** + participation / Amihud impact and delayed start bar), **NASDAQ ITCH BBO–based order imbalance**, and an **LLM governance** layer (Anthropic Claude, cached for reproducibility). Primary judge-facing demo: **Flask web application** (`web/`); narrative: **`notebooks/main_notebook.ipynb`**.
 
 ---
 
@@ -52,8 +52,11 @@ quantfin_exeter/
 ├── environment.yml
 ├── pytest.ini
 ├── .env.example              # copy to .env (gitignored) for API keys
-├── apps/
-│   └── streamlit_app.py      # judge UI: regimes, episode, benchmarks, LLM
+├── web/
+│   ├── app.py                # Flask web application (routes + API)
+│   ├── precompute.py         # case study pre-computation at startup
+│   ├── templates/            # Jinja2 HTML templates (base, home, case study, run)
+│   └── static/               # CSS, JS (Plotly charts), images
 ├── data/
 │   ├── raw/                  # yfinance cache (large files → gitignored)
 │   ├── processed/            # e.g. bbo_daily.parquet (regenerate locally)
@@ -105,6 +108,24 @@ python scripts/build_bbo_daily.py --symbols SPY AAPL
 
 Writes **`data/processed/bbo_daily.parquet`**. Training/UI merge this when `use_bbo=True` (default in `load_split`; disable with **`python scripts/train.py --no-bbo`** or Streamlit checkbox).
 
+**News (Finnhub, free API):** Add **`FINNHUB_API_KEY`** to `.env` (register at [finnhub.io/register](https://finnhub.io/register)), then:
+
+```bash
+python scripts/fetch_finnhub_news.py --symbol SPY
+```
+
+For **SPY** (and other ETFs), direct company-news is often empty; use **holdings-weighted** constituent news (Finnhub `stock/etf/holdings`, or a built-in fallback slice):
+
+```bash
+python scripts/fetch_finnhub_news.py --symbol SPY --etf-proxy --max-constituents 20
+```
+
+That issues roughly `(years of chunks) × (constituents)` calls — use **`--sleep 1.2`** and a narrower **`--from-date`** if you hit 429.
+
+Uses **~1 request/second** pacing and **retries on HTTP 429**. If you still hit limits, run again later or use `--sleep 2` / smaller `--from-date` ranges.
+
+Writes **`data/processed/news_daily_SPY.parquet`** (daily article counts). `load_split` merges **`news_count`** when the file exists; the RL observation includes **z-scored news intensity** plus a **TWAP schedule gap** (inventory vs equal schedule). **`--no-news`** on `train.py` skips the merge. **Retrain** policies after this change (observation size **9**).
+
 **Do not commit** multi-GB raw CSVs; keep them on shared drive / Box and document paths in team notes.
 
 ---
@@ -114,11 +135,119 @@ Writes **`data/processed/bbo_daily.parquet`**. Training/UI merge this when `use_
 | Task | Command |
 |------|---------|
 | Tests | `pytest` or `pytest -q` |
+| Synthetic **flat / up / down** paths (benchmarks + RL) | `python scripts/scenario_benchmarks.py` · random RL by default · **trained:** pass `--model models/PPO_*.zip` and **match training** (`--order-notional-usd`, `--T`, `--residual-bound`, `--relative-is-scale`, …) |
+| Scenarios + **trend regime switch** | Same as above, add `--regime-switch` (optional `--downtrend-model`); mid/downtrend slots use TWAP unless overridden |
+| Finnhub news → daily counts parquet | `python scripts/fetch_finnhub_news.py --symbol SPY` · ETF proxy: add `--etf-proxy --max-constituents 20` |
 | Pipeline + random baseline vs benchmarks | `python scripts/train.py --ticker SPY` |
-| Train PPO (slow) | `python scripts/train.py --ticker SPY --train --timesteps 50000` |
-| Judge UI | `streamlit run apps/streamlit_app.py` |
+| Physical USD order + impact (participation / Amihud) | `python scripts/train.py --ticker SPY --order-notional-usd 10e9 --order-start-bar 0` |
+| Train PPO (slow) | `python scripts/train.py --ticker SPY --train` (default **300k** steps; add `--n-envs 4`, `--eval-freq 25000`, `--append-synthetic flat,up,down` as needed) |
+| Judge UI (web) | `python -m web.app` → http://localhost:5001 |
 | TensorBoard | `tensorboard --logdir logs` |
 | LLM samples | `python scripts/llm_demo.py` (needs `ANTHROPIC_API_KEY` for live calls) |
+
+**Order size & timing:** With `--order-notional-usd > 0`, the pipeline maps **USD notional → shares** at the arrival (prior close) and applies a shared **participation-style** impact (daily σ, Amihud, bar dollar volume) on each slice for classical benchmarks and for **`OptimalExecutionEnv`** (RL row). `--order-start-bar` is the first bar inside the `T`-day window when trading is allowed; **arrival** for implementation shortfall is the **previous bar’s close**. Notional `0` keeps the legacy abstract unit inventory without that layer. The Flask web UI exposes the same controls on the Run page.
+
+**Train / eval parity (physical RL):** When notional is positive, `train.py`, `scenario_benchmarks.py`, and the Flask web app all attach the same **institutional** env defaults unless you override: **per-step inventory cap** `max_inventory_fraction_per_step=0.33` (disable with `--no-per-step-cap`), **`--is-reward-scale`** default **1.28** on the dollar IS term, and **`--twap-slice-bonus`** default **0.30** (same-bar TWAP-sized reference vs your slice in **`sell_effective_close`** space; set `0` to turn off). Retrain and evaluate with **matching** `--order-notional-usd`, `--order-start-bar`, `T`, and these flags—otherwise the policy sees a different reward than benchmarks/scenarios.
+
+### Pushing RL quality further
+
+#### TWAP-residual action and relative-IS reward
+
+The biggest performance lever is the **TWAP-residual action parameterization** (`--residual-bound`). Instead of learning a raw sell fraction from scratch, the policy outputs a small deviation from the TWAP schedule: action `a = 0.5` equals exact TWAP, bounded by `+/- residual_bound`. This solves the cold-start exploration problem and gives the agent a safe baseline to improve upon.
+
+On top of that, **relative-IS reward** (`--relative-is-scale`) replaces the absolute dollar-IS reward with a per-bar "improvement over TWAP" signal, directly aligning training with the evaluation metric.
+
+**Experimental results on SPY test (300k steps, notional $5M, seed 42):**
+
+| Configuration | mean_RL_minus_TWAP_bps | pct_beat_TWAP | IS-gap Sharpe | 95% CI |
+|---------------|----------------------|---------------|---------------|--------|
+| Tightened hparams only | -13.6 | 34% | -0.23 | [-21.8, -5.3] |
+| + `--residual-bound 0.15` | **+13.5** | 66% | 0.31 | [+7.5, +19.5] |
+| + `--relative-is-scale 2.0` | **+18.8** | 67.5% | 0.35 | [+11.2, +26.3] |
+| + `--bc-warmstart` | +16.4 | 66% | 0.33 | [+9.5, +23.2] |
+
+The residual action alone swung the result by ~27 bps. Adding relative-IS reward gave another ~5 bps. BC warmstart added no benefit here because the residual parameterization already starts the policy at TWAP.
+
+The agent gains more in **regime 1** (high-vol, +44 bps) than regime 0 (low-vol, +15 bps), consistent with there being more timing alpha in volatile markets.
+
+**Recommended production command:**
+
+```bash
+python scripts/train.py --ticker SPY --train --order-notional-usd 5e6 \
+  --residual-bound 0.15 --relative-is-scale 2.0 --timesteps 300000
+```
+
+#### Additional levers
+
+| Lever | Notes |
+|--------|--------|
+| **Longer train** | `--timesteps 600000` or `1000000`; use TensorBoard (`tensorboard --logdir logs`). |
+| **Vectorized rollouts** | `--n-envs 4` uses `DummyVecEnv` so each PPO/SAC update sees more diverse `(start, T)` windows. |
+| **Best TWAP-gap checkpoint** | While `--train`, every `--eval-freq` steps (default **25000**), evaluate on **val** (`features_val.parquet`) or **test** if val missing; save **`models/best_ppo_twap_gap.zip`** or **`best_sac_twap_gap.zip`** when **`mean_RL_minus_TWAP_bps`** improves. Set **`--eval-freq 0`** to disable. |
+| **TWAP-residual action** | `--residual-bound 0.15` constrains the policy to deviate at most +/-15% from TWAP per bar. |
+| **Relative-IS reward** | `--relative-is-scale 2.0` makes per-bar improvement over TWAP the primary reward signal. |
+| **BC warmstart** | `--bc-warmstart` pre-trains the policy to imitate TWAP before RL fine-tuning. Useful when not using residual action. |
+| **Ensemble** | `--ensemble 3` trains 3 models with different seeds and aggregates via median action at inference. |
+| **Offline CQL** | `--cql` trains with Conservative Q-Learning on a dataset of TWAP + perturbed rollouts (requires `d3rlpy`). |
+| **IS terminal bonus** | `--eval-is-coef 0.04` adds a terminal term aligned with `evaluate_agent` IS (try **0.02-0.08**; **0** = off). |
+| **Synthetic curriculum** | `--append-synthetic flat,up,down` appends scenario strips to the **train** panel after HMM labeling; tune length with `--synthetic-bars` (default **120**). |
+| **LR schedule** | `--lr-schedule linear` (default) decays LR from 3e-4 to 5e-5; `constant` holds at 2.5e-4. |
+| **Fixed eval windows** | `--fixed-eval-starts path.json` loads deterministic eval windows for reproducible comparisons across runs. Auto-generated if not provided. |
+
+**Hyperparameter sweep** (one knob at a time; keep notional, `T`, and start-bar fixed): (1) `--lam-risk` 0.10 / 0.22 / 0.28, (2) `--twap-slice-bonus` 0 / 0.30 / 0.60, (3) `--is-reward-scale` 1.0 / 1.15 / 1.28, (4) `--max-inventory-frac-per-step` 0.15 / 0.25 / 0.33, (5) `--residual-bound` 0.10 / 0.15 / 0.20, (6) `--relative-is-scale` 0 / 1.0 / 2.0. Compare `mean_RL_minus_TWAP_bps`, `pct_beat_TWAP_IS`, `IS-gap Sharpe`, and the `95% CI` on test after each run.
+
+```bash
+python scripts/train.py --ticker SPY --train --order-notional-usd 5e6 \
+  --residual-bound 0.15 --relative-is-scale 2.0 \
+  --n-envs 4 --timesteps 600000 --eval-freq 25000 \
+  --append-synthetic flat,up,down
+```
+
+### RL evaluation (path-aligned)
+
+The **benchmark table** still shows classical strategies averaged over **random episode starts** (same as before). That mixes many different price paths, so **RL mean IS** and **TWAP mean IS** are **not** automatically comparable as “who won head-to-head.”
+
+After each run, logs (and the web app **Benchmark Comparison** panel) include **path-aligned diagnostics** from `evaluate_agent(..., bench_params=...)`:
+
+| Field | Meaning |
+|--------|--------|
+| **mean_episode_return** | Average sum of rewards per episode (use to compare **trained vs random** policy on the same env). |
+| **mean_twap_is_bps (paths)** | TWAP implementation shortfall (bps) averaged over the **exact** `(start, T)` windows used for each RL episode. |
+| **mean_vwap_is_bps (paths)** | Same for VWAP. |
+| **mean_RL_minus_TWAP_bps** | Mean of (RL IS bps − TWAP IS bps) on those **same** windows. **> 0** ⇒ RL achieved a **higher** average sell price vs arrival than TWAP on those paths (under your IS sign). |
+| **mean_RL_minus_VWAP_bps** | Same vs VWAP. |
+| **pct_beat_TWAP_IS** | Share of episodes where RL IS bps **>** TWAP IS bps on the identical window. |
+
+**How to judge RL:** (1) **Episode return** vs random baseline with the same flags. (2) **pct_beat_TWAP_IS** and **mean_RL_minus_TWAP_bps** for a fair schedule comparison on matched paths. (3) **Completion rate**. The aggregate benchmark row remains useful for judges alongside classical baselines, but **head-to-head** metrics above are the correct read for “did RL beat TWAP?”
+
+**Controlled scenarios:** `src/scenario_paths.py` builds long **flat**, **monotone up**, and **monotone down** daily panels. `scripts/scenario_benchmarks.py` runs the same benchmark machinery on each. Pass **`--model path/to/PPO_*.zip`** with the **same flags used during training** (`--T`, `--order-notional-usd`, `--residual-bound`, `--relative-is-scale`, etc.) so the environment interprets actions correctly.
+
+```bash
+python scripts/scenario_benchmarks.py \
+  --model models/PPO_*.zip --order-notional-usd 5e6 --T 10 \
+  --residual-bound 0.15 --relative-is-scale 2.0 --n-episodes 40
+```
+
+Optional trend-based routing (same flags, add `--regime-switch`):
+
+```bash
+python scripts/scenario_benchmarks.py \
+  --model models/PPO_*.zip --regime-switch \
+  --order-notional-usd 5e6 --T 10 \
+  --residual-bound 0.15 --relative-is-scale 2.0 --n-episodes 40
+```
+
+**Scenario results (trained PPO only, path-aligned head-to-head):** checkpoint **`PPO_20260407_224208.zip`**, **`--order-notional-usd 5e6`**, **`T=10`**, **`--residual-bound 0.15`**, **`--relative-is-scale 2.0`**, synthetic panels default **`--step 0.2`** (~0.2%/day up/down), **`--n-episodes 40`**. *RL IS / TWAP IS* from the per-scenario **benchmark table**; *RL-minus-TWAP* from **path-aligned** `evaluate_agent` lines.
+
+| Scenario | RL IS (bps) | TWAP IS (bps) | RL-minus-TWAP (bps) | Beat TWAP | IS-gap Sharpe |
+|----------|-------------|---------------|---------------------|-----------|---------------|
+| **Flat** | −3.66 | −2.59 | **−1.07** | 0% | 0.00 |
+| **Up** (+0.2%/day) | +135.2 | +100.7 | **+34.7** | 100% | 24.86 |
+| **Down** (−0.2%/day) | −164.9 | −120.7 | **−43.8** | 0% | −21.48 |
+
+**Same setup with `--regime-switch`** (mid/downtrend → TWAP; uptrend → same PPO): flat and down panels match TWAP on average (**~0 bps** path-aligned gap; flat **100%** beat TWAP on identical windows in this deterministic strip). **Up** path-aligned gap falls to **~+24.7 bps** (**~87.5%** beat TWAP) because part of the window is classified **mid-trend** and executes TWAP. Use regime switching when you want **TWAP safety** off the strong uptrend; omit it to keep full PPO on all trend buckets.
+
+**Interpretation:** On **flat** synthetic data the policy stays near TWAP with a small negative gap (**−1.1 bps** path-aligned). On **monotone up**, back-loading pays off (**+35 bps** vs TWAP, consistent with README’s historical **+18.8 bps** on real SPY test). On **monotone down**, the same bias hurts (**−44 bps** vs TWAP)—a stress test for short **T=10** windows. **Regime switch** trades some upside on UP for **TWAP-like** behaviour on flat/down in these controlled paths.
 
 ---
 
@@ -130,7 +259,7 @@ Writes **`data/processed/bbo_daily.parquet`**. Training/UI merge this when `use_
 | `ANTHROPIC_API_KEY` | Live Claude calls for `llm_explainer` |
 | `ANTHROPIC_MODEL` | Override model id (e.g. match Stage 1 naming) |
 
-Copy **`.env.example` → `.env`** (see `.gitignore`) if using `python-dotenv` with Streamlit/scripts.
+Copy **`.env.example` → `.env`** (see `.gitignore`) if using `python-dotenv` with the web app or scripts.
 
 ---
 

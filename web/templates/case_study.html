@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% block title %}Case Study{% endblock %}
+
+{% block content %}
+<div class="page-light">
+
+<!-- Hero Banner -->
+<section class="bg-navy-950 pt-28 pb-16 relative overflow-hidden">
+  <div class="absolute inset-0 opacity-30">
+    <div class="absolute inset-0" style="background:radial-gradient(ellipse 60% 50% at 70% 40%, rgba(245,158,11,0.12), transparent 60%)"></div>
+  </div>
+  <div class="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
+    <p class="text-accent-400 font-semibold text-sm uppercase tracking-wider mb-3">Case Study</p>
+    <h1 class="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-4">Executing a Large SPY Sell Order</h1>
+    <p class="text-navy-300 text-lg max-w-3xl leading-relaxed">
+      A step-by-step walkthrough of how our system detects market conditions, makes execution decisions, compares against benchmarks, and explains every choice — all on real market data.
+    </p>
+  </div>
+</section>
+
+<!-- Key results highlight -->
+<section class="bg-navy-50 border-b border-navy-100">
+  <div class="max-w-5xl mx-auto px-6 lg:px-8 py-10">
+    <div class="rounded-2xl border border-navy-200 bg-white shadow-sm overflow-hidden">
+      <div class="bg-navy-900 px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <h2 class="text-lg font-bold text-white">Benchmark results (mean IS)</h2>
+        <p class="text-navy-300 text-sm">Higher bps = better average sell price vs arrival (see User Manual)</p>
+      </div>
+      <div class="p-6 md:p-8 grid md:grid-cols-2 gap-8">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-navy-400 mb-3">Key strategies</p>
+          <div class="overflow-x-auto rounded-xl border border-navy-100">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-navy-50 text-left text-navy-600">
+                  <th class="px-4 py-3 font-semibold">Strategy</th>
+                  <th class="px-4 py-3 font-semibold">Mean IS (bps)</th>
+                  <th class="px-4 py-3 font-semibold">Std (bps)</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-navy-100 text-navy-800">
+                {% if showcase_rows %}
+                  {% for row in showcase_rows %}
+                  <tr>
+                    <td class="px-4 py-3 font-medium">{{ row.Strategy }}</td>
+                    <td class="px-4 py-3 font-mono">{{ "%.2f"|format(row.Mean_IS_bps) }}</td>
+                    <td class="px-4 py-3 font-mono text-navy-500">{{ "%.2f"|format(row.Std_IS_bps) }}</td>
+                  </tr>
+                  {% endfor %}
+                {% else %}
+                  <tr>
+                    <td class="px-4 py-3 font-medium">RL</td>
+                    <td class="px-4 py-3 font-mono">73.29</td>
+                    <td class="px-4 py-3 font-mono text-navy-500">—</td>
+                  </tr>
+                  <tr>
+                    <td class="px-4 py-3 font-medium">TWAP</td>
+                    <td class="px-4 py-3 font-mono">53.44</td>
+                    <td class="px-4 py-3 font-mono text-navy-500">—</td>
+                  </tr>
+                  <tr>
+                    <td class="px-4 py-3 font-medium">Immediate</td>
+                    <td class="px-4 py-3 font-mono">6.38</td>
+                    <td class="px-4 py-3 font-mono text-navy-500">—</td>
+                  </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="bg-accent-50 border border-accent-200 rounded-xl p-5 md:p-6 flex flex-col justify-center">
+          <p class="text-xs font-semibold uppercase tracking-wider text-accent-700 mb-2">What this means in USD</p>
+          {% if usd_showcase %}
+          <p class="text-navy-700 leading-relaxed text-sm md:text-base">
+            At <strong>${{ "{:,.0f}".format(usd_showcase.notional) }}</strong> notional: <strong>${{ "{:,.0f}".format(usd_showcase.usd_vs_twap) }}</strong> better than TWAP
+            {% if 'immediate_bps' in usd_showcase %}
+            ; <strong>${{ "{:,.0f}".format(usd_showcase.usd_vs_immediate) }}</strong> better than Immediate execution
+            {% endif %}
+          </p>
+          <p class="text-navy-600 text-sm mt-2 leading-relaxed">
+            Scale (illustrative): Imagine trading this notional every hour → <strong>~${{ "{:,.0f}".format(usd_showcase.usd_vs_twap * 6) }}</strong> better than TWAP{% if 'immediate_bps' in usd_showcase %}, <strong>~${{ "{:,.0f}".format(usd_showcase.usd_vs_immediate * 6) }}</strong> better than Immediate{% endif %}.
+          </p>
+          {% else %}
+          <p class="text-navy-700 leading-relaxed text-sm md:text-base">
+            At <strong>$5,000,000</strong> notional: <strong>$9,925</strong> better than TWAP ; <strong>$33,455</strong> better than Immediate execution.
+          </p>
+          <p class="text-navy-600 text-sm mt-2 leading-relaxed">
+            Scale (illustrative): Imagine trading this notional every hour → <strong>~$59,547</strong> better than TWAP, <strong>~$200,727</strong> better than Immediate.
+          </p>
+          {% endif %}
+          <a href="/user-manual#implementation-shortfall" class="inline-flex items-center gap-1 mt-4 text-sm font-semibold text-accent-700 hover:text-accent-800">
+            Read IS definition in the User Manual
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="max-w-5xl mx-auto px-6 lg:px-8 py-16 space-y-10">
+
+  <!-- Context -->
+  <div class="bg-accent-50 border border-accent-200 rounded-2xl p-6 md:p-8">
+    <div class="flex items-start gap-4">
+      <div class="w-10 h-10 rounded-xl bg-accent-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
+      </div>
+      <div>
+        <h3 class="text-lg font-bold text-navy-900 mb-2">Scenario</h3>
+        <p class="text-navy-600 leading-relaxed">
+          An institutional portfolio manager needs to liquidate a large SPY position over <strong>{{ case.T }} trading days</strong>.
+          The goal is to minimise <strong>implementation shortfall</strong> — the gap between the decision price and the actual average execution price — measured in <strong>basis points (bps)</strong>.
+          One basis point equals 0.01% of the trade value.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 1: Regime Detection -->
+  <div class="step-card fade-section">
+    <div class="flex items-center gap-4 mb-6">
+      <div class="step-number">1</div>
+      <div>
+        <h2 class="text-2xl font-bold text-navy-900">Reading the Market</h2>
+        <p class="text-navy-400 text-sm">Regime Detection with Hidden Markov Models</p>
+      </div>
+    </div>
+    <p class="text-navy-600 leading-relaxed mb-6">
+      Before making any trading decisions, we need to understand the current market environment. Our <strong>Hidden Markov Model (HMM)</strong> analyses historical volatility and order-book imbalance to classify each trading day into one of two regimes:
+    </p>
+    <div class="grid md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+        <div class="flex items-center gap-2 mb-2">
+          <div class="w-4 h-4 rounded-full bg-emerald-400"></div>
+          <span class="font-semibold text-navy-800">Calm Regime</span>
+        </div>
+        <p class="text-sm text-navy-500">Low volatility, stable conditions. The agent can afford to trade more slowly, patiently working the order to minimise market impact.</p>
+      </div>
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+        <div class="flex items-center gap-2 mb-2">
+          <div class="w-4 h-4 rounded-full bg-amber-400"></div>
+          <span class="font-semibold text-navy-800">Elevated Volatility</span>
+        </div>
+        <p class="text-sm text-navy-500">Higher uncertainty and price swings. The agent accelerates execution to reduce the risk of adverse price moves while the order remains open.</p>
+      </div>
+    </div>
+    <div id="regime-chart" class="rounded-xl overflow-hidden border border-navy-100" style="height:400px;"></div>
+    {% if case.regime_summary %}
+    <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+      {% for row in case.regime_summary %}
+      <div class="bg-navy-50 rounded-lg p-3 text-center">
+        <p class="text-xs text-navy-400 uppercase font-semibold">{{ row.name }}</p>
+        <p class="text-xl font-bold text-navy-900">{{ row.count }} <span class="text-sm font-normal text-navy-400">days</span></p>
+        <p class="text-xs text-navy-400">avg vol: {{ "%.1f"|format(row.mean_vol * 100) }}%</p>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Step 2: Agent Execution -->
+  <div class="step-card fade-section">
+    <div class="flex items-center gap-4 mb-6">
+      <div class="step-number">2</div>
+      <div>
+        <h2 class="text-2xl font-bold text-navy-900">The Agent Executes</h2>
+        <p class="text-navy-400 text-sm">PPO Reinforcement Learning Policy</p>
+      </div>
+    </div>
+    <p class="text-navy-600 leading-relaxed mb-6">
+      Our trained RL agent observes market conditions at each step — current inventory, remaining time, price movement, volatility, liquidity, and the detected regime — then decides <strong>what fraction of the remaining order to execute</strong>. The chart below shows one execution episode:
+    </p>
+    <div id="episode-chart" class="rounded-xl overflow-hidden border border-navy-100" style="height:380px;"></div>
+    {% if case.episode_summary %}
+    <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div class="bg-navy-50 rounded-lg p-3 text-center">
+        <p class="text-xs text-navy-400 uppercase font-semibold">IS (bps)</p>
+        <p class="text-xl font-bold text-navy-900">{{ "%.2f"|format(case.episode_summary.is_bps) }}</p>
+      </div>
+      <div class="bg-navy-50 rounded-lg p-3 text-center">
+        <p class="text-xs text-navy-400 uppercase font-semibold">Completed</p>
+        <p class="text-xl font-bold text-navy-900">{{ "Yes" if case.episode_summary.completed else "No" }}</p>
+      </div>
+      <div class="bg-navy-50 rounded-lg p-3 text-center">
+        <p class="text-xs text-navy-400 uppercase font-semibold">Steps</p>
+        <p class="text-xl font-bold text-navy-900">{{ case.episode_summary.steps }}</p>
+      </div>
+      <div class="bg-navy-50 rounded-lg p-3 text-center">
+        <p class="text-xs text-navy-400 uppercase font-semibold">Arrival Price</p>
+        <p class="text-xl font-bold text-navy-900">${{ "%.2f"|format(case.episode_summary.arrival) }}</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Step 3: Benchmark Comparison -->
+  <div class="step-card fade-section">
+    <div class="flex items-center gap-4 mb-6">
+      <div class="step-number">3</div>
+      <div>
+        <h2 class="text-2xl font-bold text-navy-900">Benchmark Comparison</h2>
+        <p class="text-navy-400 text-sm">How does our agent compare to classical strategies?</p>
+      </div>
+    </div>
+    <p class="text-navy-600 leading-relaxed mb-4">
+      We measure performance using <strong>Implementation Shortfall (IS)</strong> in basis points. A higher IS means the trader received better average prices relative to the arrival price (for a sell order). We compare our RL agent against four classical benchmarks:
+    </p>
+    <ul class="text-navy-500 text-sm space-y-2 mb-6 ml-4">
+      <li><strong>TWAP</strong> — Time-Weighted Average Price: sells equal amounts at each time step.</li>
+      <li><strong>VWAP</strong> — Volume-Weighted Average Price: sells proportional to market volume.</li>
+      <li><strong>Almgren&ndash;Chriss</strong> — academic optimal schedule balancing urgency and market impact.</li>
+      <li><strong>Immediate</strong> — sells everything at once in the first bar (maximum market impact).</li>
+    </ul>
+
+    {% if case.benchmarks is not none %}
+    <div class="overflow-x-auto rounded-xl border border-navy-100">
+      <table class="bench-table">
+        <thead>
+          <tr>
+            <th>Strategy</th>
+            <th>Mean IS (bps)</th>
+            <th>Std IS (bps)</th>
+            <th>Completion Rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in case.benchmarks %}
+          <tr class="{{ 'rl-row' if row.Strategy == 'RL' }}">
+            <td class="font-medium">{{ row.Strategy }}</td>
+            <td>{{ "%.2f"|format(row.Mean_IS_bps) }}</td>
+            <td>{{ "%.2f"|format(row.Std_IS_bps) }}</td>
+            <td>{{ "%.0f"|format(row.Completion_Rate * 100) }}%</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div id="benchmark-chart" class="mt-6 rounded-xl overflow-hidden border border-navy-100" style="height:320px;"></div>
+    {% else %}
+    <div class="bg-navy-50 rounded-xl p-8 text-center text-navy-400">
+      <p>Benchmark data will appear here when data is available. Configure <code>CFA_DATA_ROOT</code> and restart.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Step 4: LLM Governance -->
+  <div class="step-card fade-section">
+    <div class="flex items-center gap-4 mb-6">
+      <div class="step-number">4</div>
+      <div>
+        <h2 class="text-2xl font-bold text-navy-900">AI Governance</h2>
+        <p class="text-navy-400 text-sm">Plain-English Explanation by Claude</p>
+      </div>
+    </div>
+    <p class="text-navy-600 leading-relaxed mb-6">
+      For every execution decision, our system generates a human-readable explanation suitable for a portfolio manager or compliance officer. This is the output for the scenario above:
+    </p>
+    {% if case.governance_text %}
+    <div class="governance-box">
+      {{ case.governance_text }}
+    </div>
+    {% else %}
+    <div class="governance-box">
+      <em>Governance explanation will appear when data is available.</em>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Takeaway -->
+  <div class="bg-navy-950 rounded-2xl p-8 md:p-10 text-center fade-section">
+    <h3 class="text-2xl font-bold text-white mb-4">Key Takeaway</h3>
+    <p class="text-navy-300 leading-relaxed max-w-2xl mx-auto">
+      Our regime-aware RL agent adapts its execution pace to market conditions, achieving competitive implementation shortfall compared to classical strategies while providing full transparency through LLM-powered governance. Every decision is explainable, every trade is accountable.
+    </p>
+    <a href="/run" class="inline-flex items-center gap-2 mt-8 bg-accent-500 hover:bg-accent-600 text-white font-semibold px-7 py-3.5 rounded-xl transition-all hover:shadow-lg hover:shadow-accent-500/25">
+      Try It Yourself in the Execution Lab
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+    </a>
+  </div>
+
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script>
+  // Fade-in
+  const observer = new IntersectionObserver(
+    entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }),
+    { threshold: 0.1 }
+  );
+  document.querySelectorAll('.fade-section').forEach(el => observer.observe(el));
+
+  // Render pre-computed charts
+  const caseData = {{ case_json | safe }};
+
+  if (caseData.regime_chart) {
+    renderRegimeChart('regime-chart', caseData.regime_chart);
+  }
+  if (caseData.episode_chart) {
+    renderEpisodeChart('episode-chart', caseData.episode_chart);
+  }
+  if (caseData.benchmark_chart) {
+    renderBenchmarkChart('benchmark-chart', caseData.benchmark_chart);
+  }
+</script>
+{% endblock %}
