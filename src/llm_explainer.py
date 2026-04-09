@@ -18,6 +18,10 @@ def _build_prompt(**kw: str | float | int) -> str:
 Explain the following trade execution decision in clear, professional English suitable for
 a portfolio manager or compliance officer. Be concise (3-5 sentences). Be specific about numbers.
 
+Important context: this is a SELL order (position close). For a sell, a HIGHER Implementation
+Shortfall (IS) in bps is BETTER — it means the trader achieved a higher average execution price
+relative to the arrival price, capturing more value for the seller.
+
 Market conditions:
 - Detected regime: {kw['regime_name']} (regime {kw['regime']})
 - Realised daily volatility: {float(kw['sigma_t']) * 100:.2f}%
@@ -26,15 +30,16 @@ Market conditions:
 Execution decision:
 - Remaining inventory: {float(kw['inventory_remaining']) * 100:.1f}% of original order
 - Fraction executed this interval: {float(kw['action_taken']) * 100:.1f}%
-- Estimated execution cost this interval: {float(kw['execution_cost_bps']):.2f} bps
+- Estimated IS this interval: {float(kw['execution_cost_bps']):.2f} bps (higher = better for sell)
 
-Benchmark comparison (estimated full-order cost):
+Benchmark comparison (mean IS over many windows — higher bps = better):
 - Our RL strategy: {float(kw['execution_cost_bps']):.2f} bps
 - TWAP benchmark: {float(kw['twap_cost_bps']):.2f} bps
 - Almgren-Chriss benchmark: {float(kw['ac_cost_bps']):.2f} bps
 
-Explain: (1) what the market regime means for execution, (2) why this execution speed
-was chosen relative to benchmarks, (3) what risk is being managed."""
+Explain: (1) what the market regime means for execution pace, (2) why this execution speed
+was chosen relative to benchmarks (noting that higher IS is better for the seller), (3) what
+inventory or market risk is being managed."""
 
 
 def explain_execution(
@@ -70,12 +75,14 @@ def explain_execution(
     if not api_key:
         explanation = (
             f"In the {regime_name} regime (id {regime}), the desk executed "
-            f"{action_taken*100:.1f}% of the remaining book this interval with "
-            f"~{execution_cost_bps:.1f} bps estimated cost versus TWAP ~{twap_cost_bps:.1f} bps "
+            f"{action_taken*100:.1f}% of the remaining book this interval, achieving "
+            f"~{execution_cost_bps:.1f} bps implementation shortfall versus TWAP ~{twap_cost_bps:.1f} bps "
             f"and Almgren–Chriss ~{ac_cost_bps:.1f} bps. "
+            f"Note: because this is a sell (position close), a higher IS in bps is better — "
+            f"it reflects a higher average execution price relative to arrival. "
             f"Daily volatility is about {sigma_t*100:.2f}% with Amihud liquidity {liquidity_t:.4f}. "
-            f"The pace balances market impact against inventory risk with {inventory_remaining*100:.1f}% "
-            "still to work."
+            f"The execution pace balances market impact against inventory risk, with {inventory_remaining*100:.1f}% "
+            "of the original order still to work."
         )
         with open(cache_file, "w", encoding="utf-8") as f:
             json.dump(

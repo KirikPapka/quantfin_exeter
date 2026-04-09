@@ -16,8 +16,25 @@ def rollout_episode(
     *,
     seed: int | None = None,
     deterministic: bool = True,
+    row_start: int | None = None,
 ) -> Tuple[pd.DataFrame, dict[str, float]]:
     obs, _ = env.reset(seed=seed)
+    if row_start is not None:
+        # Override the randomly-sampled start to a specific bar index.
+        # Mirrors the fixed_starts logic used in evaluate_agent.
+        env._row_start = row_start  # noqa: SLF001
+        env._t = 0  # noqa: SLF001
+        env._X = env.X_0  # noqa: SLF001
+        env._S0 = float(env.price_data.iloc[row_start]["Close"])  # noqa: SLF001
+        if getattr(env, "_physical", False):
+            from .execution_impact import arrival_price_full
+            env._arrival = float(arrival_price_full(env.price_data, row_start, env._t0))  # noqa: SLF001
+            env._Q_shares = float(env.order_notional_usd) / max(env._arrival, 1e-12)  # noqa: SLF001
+            env._notional_scale = max(env._Q_shares * env._arrival, 1e-12)  # noqa: SLF001
+        else:
+            env._arrival = env._S0  # noqa: SLF001
+        env._ep_is_num = 0.0  # noqa: SLF001
+        obs = env._obs()  # noqa: SLF001
     arrival = float(env._arrival)  # noqa: SLF001
     physical = bool(getattr(env, "_physical", False))
     rows: List[dict[str, float]] = []
@@ -32,9 +49,12 @@ def rollout_episode(
         v = float(info.get("v_shares", info.get("v_t", 0.0)))
         px = float(info.get("exec_price", arrival))
         total_cost += v * (px - arrival)
+        date_idx = env._row_start + step  # noqa: SLF001
+        date_val = env.price_data.index[date_idx] if date_idx < len(env.price_data) else None
         rows.append(
             {
                 "step": step,
+                "date": str(date_val.date()) if date_val is not None else str(step),
                 "inventory_before": x_before,
                 "inventory_after": float(env._X),  # noqa: SLF001
                 "action_frac": float(np.clip(action[0], 0, 1)),

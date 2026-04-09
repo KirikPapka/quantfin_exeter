@@ -15,6 +15,7 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -86,6 +87,69 @@ logger.info("Pre-computing case study data (this may take a moment)...")
 CASE_STUDY: CaseStudyData = precompute_case_study()
 logger.info("Case study ready (available=%s)", CASE_STUDY.available)
 
+# ---------------------------------------------------------------------------
+# Exec Lab cache (master process only — avoids PPO.load / torch in gunicorn workers)
+# ---------------------------------------------------------------------------
+_LAB_CACHE_DF: dict[str, Any] = {}
+_LAB_CACHE_PPO_AGENT: object | None = None
+_LAB_CACHE_PPO_RESOLVED: str | None = None
+
+
+def _init_exec_lab_cache() -> None:
+    """Load splits and PPO once at import so forked workers never call torch.load."""
+    global _LAB_CACHE_DF, _LAB_CACHE_PPO_AGENT, _LAB_CACHE_PPO_RESOLVED
+    from src.data_pipeline import load_split
+
+    for split in ("train", "val", "test"):
+        try:
+            _LAB_CACHE_DF[split] = load_split(split, ticker="SPY", use_bbo=True, use_news=True)
+        except Exception as exc:
+            logger.warning("Exec lab cache: could not load split %s: %s", split, exc)
+
+    best = ROOT / "models" / "best_ppo_twap_gap.zip"
+    if best.is_file():
+        from stable_baselines3 import PPO
+
+        _LAB_CACHE_PPO_RESOLVED = str(best.resolve())
+        logger.info("Exec lab cache: loading PPO once at %s", _LAB_CACHE_PPO_RESOLVED)
+        _LAB_CACHE_PPO_AGENT = PPO.load(_LAB_CACHE_PPO_RESOLVED)
+        logger.info("Exec lab cache: PPO ready (workers will reuse; no torch.load per request)")
+    else:
+        logger.info("Exec lab cache: no best_ppo_twap_gap.zip — PPO routes cold-load or use random")
+
+
+_init_exec_lab_cache()
+
+
+def _lab_df_for_split(split: str):
+    """Copy of cached panel for this split, or None if not cached."""
+    base = _LAB_CACHE_DF.get(split)
+    if base is None:
+        return None
+    return base.copy()
+
+
+def _lab_agent_for_policy(policy_path: str, seed: int):
+    """Agent for rollout/benchmarks. Random is always fresh; PPO hits cache when path matches best zip."""
+    if not policy_path or policy_path == "random":
+        return _RandomAgent(seed)
+
+    try:
+        req_resolved = str(Path(policy_path).resolve())
+    except Exception:
+        req_resolved = str(policy_path)
+
+    if (
+        _LAB_CACHE_PPO_AGENT is not None
+        and _LAB_CACHE_PPO_RESOLVED is not None
+        and req_resolved == _LAB_CACHE_PPO_RESOLVED
+    ):
+        return _LAB_CACHE_PPO_AGENT
+
+    from stable_baselines3 import PPO
+
+    return PPO.load(policy_path)
+
 
 def _list_models() -> list[dict]:
     d = ROOT / "models"
@@ -107,12 +171,66 @@ def _safe_float(v) -> float:
     return 0.0 if not np.isfinite(f) else f
 
 
-def _showcase_benchmark_rows(benchmarks: list | None) -> list[dict] | None:
+import pandas as _pd  # noqa: E402  (already imported transitively; explicit for type checker)
+
+def _resolve_start_date(df: "_pd.DataFrame", start_date: str | None, T: int) -> int:
+    """Map a YYYY-MM-DD string to a valid row_start index in df.
+
+    Non-trading days snap backward (ffill) to the nearest previous session.
+    Raises ValueError with a user-friendly message if the date is out of range.
+    """
+    if not start_date:
+        raise ValueError("Please select an execution start date.")
+    import pandas as pd
+    target = pd.Timestamp(start_date)
+    idx = int(df.index.get_indexer([target], method="ffill")[0])
+    if idx < 0:
+        raise ValueError(
+            f"Date {start_date} is before the data starts ({df.index[0].date()}). "
+            "Pick a later date."
+        )
+    max_start = len(df) - T - 1
+    if idx > max_start:
+        raise ValueError(
+            f"Date {start_date} is too close to the end of the data: "
+            f"need at least {T} bars after it "
+            f"(last valid start: {df.index[max_start].date()})."
+        )
+    return idx
+
+
+def _split_date_context(split: str = "test", T: int = 10) -> dict:
+    """Return min/max/default date strings for the date picker."""
+    import pandas as pd
+    df = _lab_df_for_split(split)
+    if df is None or len(df) < T + 2:
+        return {"split_date_min": "", "split_date_max": "", "split_date_default": "", "horizon_T": T}
+    date_min = df.index[0].date().isoformat()
+    date_max = df.index[max(0, len(df) - T - 1)].date().isoformat()
+    # Default: ~25% into the split (a reasonable mid-point)
+    default_idx = min(len(df) // 4, len(df) - T - 1)
+    date_default = df.index[default_idx].date().isoformat()
+    return {
+        "split_date_min": date_min,
+        "split_date_max": date_max,
+        "split_date_default": date_default,
+        "horizon_T": T,
+    }
+
+
+def _showcase_benchmark_rows(benchmarks: list | None, notional: float = 5_000_000.0) -> list[dict] | None:
     if not benchmarks:
         return None
     by_name = {str(b["Strategy"]): b for b in benchmarks}
     order = ["RL", "TWAP", "Immediate"]
-    out = [by_name[s] for s in order if s in by_name]
+    out = []
+    for s in order:
+        if s not in by_name:
+            continue
+        row = dict(by_name[s])
+        row["Mean_IS_usd"] = _safe_float(row["Mean_IS_bps"]) * notional / 10_000.0
+        row["Std_IS_usd"] = _safe_float(row["Std_IS_bps"]) * notional / 10_000.0
+        out.append(row)
     return out or None
 
 
@@ -167,7 +285,7 @@ def case_study():
         active_page="case_study",
         case=case_to_template_dict(CASE_STUDY),
         case_json=case_to_chart_json(CASE_STUDY),
-        showcase_rows=_showcase_benchmark_rows(bench),
+        showcase_rows=_showcase_benchmark_rows(bench, ORDER_NOTIONAL_USD),
         usd_showcase=_usd_showcase_context(bench, ORDER_NOTIONAL_USD),
         order_notional_usd=ORDER_NOTIONAL_USD,
     )
@@ -179,6 +297,7 @@ def run_page():
         "run.html",
         active_page="run",
         models=_list_models(),
+        **_split_date_context("test", T=10),
     )
 
 
@@ -203,7 +322,9 @@ def api_regimes():
         split = request.form.get("split", "test")
         n_reg = int(request.form.get("n_reg", 2))
 
-        df = load_split(split, ticker="SPY", use_bbo=True, use_news=True)
+        df = _lab_df_for_split(split)
+        if df is None:
+            df = load_split(split, ticker="SPY", use_bbo=True, use_news=True)
         det = RegimeDetector(n_components=n_reg, fallback_threshold=0.24)
         det.fit(df)
         regimes = det.predict(df)
@@ -250,25 +371,25 @@ def api_episode():
         split = request.form.get("split", "test")
         n_reg = int(request.form.get("n_reg", 2))
         T = int(request.form.get("horizon", 10))
-        seed = int(request.form.get("seed", 42))
+        start_date = request.form.get("start_date", "").strip()
         policy_path = request.form.get("policy", "random")
 
-        df = load_split(split, ticker="SPY", use_bbo=True, use_news=True)
+        df = _lab_df_for_split(split)
+        if df is None:
+            df = load_split(split, ticker="SPY", use_bbo=True, use_news=True)
+        row_start = _resolve_start_date(df, start_date, T)
+
         det = RegimeDetector(n_components=n_reg, fallback_threshold=0.24)
         det.fit(df)
         df["regime"] = det.predict(df)
 
-        env = OptimalExecutionEnv(df, T=T, seed=seed, **_physical_env_kwargs())
+        env = OptimalExecutionEnv(df, T=T, resample=False, **_physical_env_kwargs())
+        agent = _lab_agent_for_policy(policy_path, 42)
 
-        if policy_path and policy_path != "random":
-            from stable_baselines3 import PPO
-            agent = PPO.load(policy_path)
-        else:
-            agent = _RandomAgent(seed)
-
-        traj, summ = rollout_episode(env, agent, seed=seed, deterministic=True)
+        traj, summ = rollout_episode(env, agent, seed=42, deterministic=True, row_start=row_start)
         chart_data = {
             "steps": traj["step"].tolist(),
+            "dates": traj["date"].tolist() if "date" in traj.columns else traj["step"].tolist(),
             "inventory": traj["inventory_after"].tolist(),
             "actions": traj["action_frac"].tolist(),
         }
@@ -306,26 +427,27 @@ def api_benchmarks():
         split = request.form.get("split", "test")
         n_reg = int(request.form.get("n_reg", 2))
         T = int(request.form.get("horizon", 10))
-        seed = int(request.form.get("seed", 42))
-        n_episodes = int(request.form.get("n_episodes", 200))
+        start_date = request.form.get("start_date", "").strip()
         policy_path = request.form.get("policy", "random")
 
-        df = load_split(split, ticker="SPY", use_bbo=True, use_news=True)
+        df = _lab_df_for_split(split)
+        if df is None:
+            df = load_split(split, ticker="SPY", use_bbo=True, use_news=True)
+        row_start = _resolve_start_date(df, start_date, T)
+
         det = RegimeDetector(n_components=n_reg, fallback_threshold=0.24)
         det.fit(df)
         df["regime"] = det.predict(df)
 
-        env = OptimalExecutionEnv(df, T=T, seed=seed, **_physical_env_kwargs())
-
-        if policy_path and policy_path != "random":
-            from stable_baselines3 import PPO
-            agent = PPO.load(policy_path)
-        else:
-            agent = _RandomAgent(seed)
+        env = OptimalExecutionEnv(df, T=T, resample=False, **_physical_env_kwargs())
+        agent = _lab_agent_for_policy(policy_path, 42)
 
         bp = _bench_params(T)
-        rl_stats = evaluate_agent(agent, env, n_episodes=n_episodes, seed=seed, bench_params=bp)
-        bench_df = compare_all(rl_stats, df, {**bp, "seed": seed, "n_starts": min(50, n_episodes)})
+        rl_stats = evaluate_agent(
+            agent, env, n_episodes=0, seed=42, bench_params=bp,
+            fixed_starts=[(row_start, 42)],
+        )
+        bench_df = compare_all(rl_stats, df, {**bp, "seed": 42, "n_starts": 1, "fixed_row_starts": [row_start]})
 
         rows = [
             {
@@ -340,6 +462,7 @@ def api_benchmarks():
             "strategies": bench_df["Strategy"].tolist(),
             "mean_is": [_safe_float(v) for v in bench_df["Mean_IS_bps"]],
             "std_is": [_safe_float(v) for v in bench_df["Std_IS_bps"]],
+            "completion_rates": [_safe_float(v) for v in bench_df["Completion_Rate"]] if "Completion_Rate" in bench_df.columns else [],
         }
         rl_report = format_rl_eval_report(rl_stats)
 
@@ -373,11 +496,14 @@ def api_run_all():
         split = request.form.get("split", "test")
         n_reg = int(request.form.get("n_reg", 2))
         T = int(request.form.get("horizon", 10))
-        seed = int(request.form.get("seed", 42))
-        n_episodes = int(request.form.get("n_episodes", 200))
+        start_date = request.form.get("start_date", "").strip()
         policy_path = request.form.get("policy", "random")
 
-        df = load_split(split, ticker="SPY", use_bbo=True, use_news=True)
+        df = _lab_df_for_split(split)
+        if df is None:
+            df = load_split(split, ticker="SPY", use_bbo=True, use_news=True)
+        row_start = _resolve_start_date(df, start_date, T)
+
         det = RegimeDetector(n_components=n_reg, fallback_threshold=0.24)
         det.fit(df)
         regimes = det.predict(df)
@@ -400,18 +526,14 @@ def api_run_all():
             for idx, row in summary_df.iterrows()
         ]
 
-        # Load agent
-        if policy_path and policy_path != "random":
-            from stable_baselines3 import PPO
-            agent = PPO.load(policy_path)
-        else:
-            agent = _RandomAgent(seed)
+        agent = _lab_agent_for_policy(policy_path, 42)
 
-        # Episode
-        env = OptimalExecutionEnv(df, T=T, seed=seed, **_physical_env_kwargs())
-        traj, summ = rollout_episode(env, agent, seed=seed, deterministic=True)
+        # Episode — anchored to the user-selected start date
+        env = OptimalExecutionEnv(df, T=T, resample=False, **_physical_env_kwargs())
+        traj, summ = rollout_episode(env, agent, seed=42, deterministic=True, row_start=row_start)
         episode_chart_json = json.dumps({
             "steps": traj["step"].tolist(),
+            "dates": traj["date"].tolist() if "date" in traj.columns else traj["step"].tolist(),
             "inventory": traj["inventory_after"].tolist(),
             "actions": traj["action_frac"].tolist(),
         })
@@ -422,11 +544,14 @@ def api_run_all():
             "arrival": _safe_float(summ["arrival"]),
         })()
 
-        # Benchmarks
-        env2 = OptimalExecutionEnv(df, T=T, seed=seed, **_physical_env_kwargs())
+        # Benchmarks — same single window as the episode
+        env2 = OptimalExecutionEnv(df, T=T, resample=False, **_physical_env_kwargs())
         bp = _bench_params(T)
-        rl_stats = evaluate_agent(agent, env2, n_episodes=n_episodes, seed=seed, bench_params=bp)
-        bench_df = compare_all(rl_stats, df, {**bp, "seed": seed, "n_starts": min(50, n_episodes)})
+        rl_stats = evaluate_agent(
+            agent, env2, n_episodes=0, seed=42, bench_params=bp,
+            fixed_starts=[(row_start, 42)],
+        )
+        bench_df = compare_all(rl_stats, df, {**bp, "seed": 42, "n_starts": 1, "fixed_row_starts": [row_start]})
         bench_rows = [
             {
                 "Strategy": str(r["Strategy"]),
@@ -440,6 +565,7 @@ def api_run_all():
             "strategies": bench_df["Strategy"].tolist(),
             "mean_is": [_safe_float(v) for v in bench_df["Mean_IS_bps"]],
             "std_is": [_safe_float(v) for v in bench_df["Std_IS_bps"]],
+            "completion_rates": [_safe_float(v) for v in bench_df["Completion_Rate"]] if "Completion_Rate" in bench_df.columns else [],
         })
         rl_report = format_rl_eval_report(rl_stats)
 

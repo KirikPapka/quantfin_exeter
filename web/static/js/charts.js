@@ -91,49 +91,65 @@ function renderRegimeChart(containerId, data) {
 /**
  * Render episode inventory + action chart.
  * @param {string} containerId  - DOM element id
- * @param {Object} data         - { steps: [], inventory: [], actions: [] }
+ * @param {Object} data         - { steps: [], dates: [], inventory: [], actions: [] }
  */
 function renderEpisodeChart(containerId, data) {
   if (!data || !data.steps) return;
+  const useDates = data.dates && data.dates.length === data.steps.length &&
+                   typeof data.dates[0] === 'string' && data.dates[0].match(/^\d{4}-\d{2}-\d{2}/);
+  const xValues = useDates ? data.dates : data.steps;
+  const xType   = useDates ? 'date' : 'linear';
+  const xTitle  = useDates ? 'Date' : 'Step';
+
   const invTrace = {
-    x: data.steps,
+    x: xValues,
     y: data.inventory,
     type: 'scatter',
     mode: 'lines+markers',
-    name: 'Inventory',
+    name: 'Inventory remaining',
     line: { color: QF_COLORS.navy, width: 2.5 },
     marker: { size: 6, color: QF_COLORS.navy },
     yaxis: 'y',
-    hovertemplate: 'Step %{x}<br>Inventory: %{y:.3f}<extra></extra>',
+    hovertemplate: (useDates ? '%{x|%b %d, %Y}' : 'Step %{x}') + '<br>Inventory: %{y:.3f}<extra></extra>',
   };
   const actTrace = {
-    x: data.steps,
+    x: xValues,
     y: data.actions,
     type: 'bar',
-    name: 'Action (fraction)',
+    name: 'Action fraction',
     marker: { color: QF_COLORS.accent, opacity: 0.7 },
     yaxis: 'y2',
-    hovertemplate: 'Step %{x}<br>Action: %{y:.3f}<extra></extra>',
+    hovertemplate: (useDates ? '%{x|%b %d, %Y}' : 'Step %{x}') + '<br>Action: %{y:.3f}<extra></extra>',
   };
   const layout = {
     ...QF_LAYOUT,
-    title: { text: 'Execution Episode: Inventory & Actions', font: { size: 14, color: '#102a43' }, x: 0.02 },
-    xaxis: { ...QF_LAYOUT.xaxis, title: { text: 'Step', standoff: 4 }, dtick: 1 },
+    margin: { ...QF_LAYOUT.margin, t: 52, r: 64, b: 48 },
+    xaxis: { ...QF_LAYOUT.xaxis, title: { text: xTitle, standoff: 4 }, type: xType, ...(useDates ? {} : { dtick: 1 }) },
     yaxis: {
       ...QF_LAYOUT.yaxis,
-      title: { text: 'Inventory Remaining', font: { color: QF_COLORS.navy }, standoff: 8 },
+      title: { text: 'Inventory', font: { color: QF_COLORS.navy }, standoff: 10 },
       side: 'left',
       rangemode: 'tozero',
     },
     yaxis2: {
-      title: { text: 'Action Fraction', font: { color: QF_COLORS.accentDk }, standoff: 8 },
+      title: { text: 'Action', font: { color: QF_COLORS.accentDk }, standoff: 10 },
       overlaying: 'y',
       side: 'right',
       rangemode: 'tozero',
-      range: [0, 1],
+      range: [0, 1.05],
       gridcolor: 'rgba(0,0,0,0)',
     },
-    legend: { x: 0.02, y: 1.15, orientation: 'h', font: { size: 11 } },
+    legend: {
+      x: 0.5,
+      y: 1.04,
+      xanchor: 'center',
+      yanchor: 'bottom',
+      orientation: 'h',
+      font: { size: 11 },
+      bgcolor: 'rgba(255,255,255,0.95)',
+      bordercolor: '#e2e8f0',
+      borderwidth: 1,
+    },
     barmode: 'overlay',
     bargap: 0.3,
     height: null,
@@ -176,4 +192,84 @@ function renderBenchmarkChart(containerId, data) {
     height: null,
   };
   Plotly.newPlot(containerId, [trace], layout, { responsive: true, displayModeBar: false });
+}
+
+
+/**
+ * Render two side-by-side heatmaps: Mean IS (bps) and Completion Rate.
+ * @param {string} isContainerId    - DOM element id for IS heatmap
+ * @param {string} crContainerId    - DOM element id for Completion Rate heatmap
+ * @param {Object} data             - { strategies: [], mean_is: [], completion_rates: [] }
+ */
+function renderBenchmarkHeatmaps(isContainerId, crContainerId, data) {
+  if (!data || !data.strategies) return;
+
+  const strats = data.strategies;
+  const isVals = data.mean_is || [];
+  const crVals = (data.completion_rates || []).map(v => v * 100);
+
+  const heatmapConfig = { responsive: true, displayModeBar: false };
+
+  // --- Mean IS heatmap ---
+  const isTrace = {
+    x: strats,
+    y: ['Mean IS (bps)'],
+    z: [isVals],
+    type: 'heatmap',
+    // Red (low IS, worse for a sell) → green (high IS, better)
+    colorscale: [
+      [0, '#b91c1c'],
+      [0.35, '#f97316'],
+      [0.65, '#eab308'],
+      [1, '#15803d'],
+    ],
+    showscale: true,
+    colorbar: { thickness: 14, len: 0.8, title: { text: 'bps', side: 'right', font: { size: 11 } } },
+    hovertemplate: '%{x}<br>Mean IS: %{z:.2f} bps<extra></extra>',
+    text: [isVals.map(v => v.toFixed(1) + ' bps')],
+    texttemplate: '%{text}',
+    textfont: { size: 13, color: '#ffffff' },
+  };
+  const isLayout = {
+    ...QF_LAYOUT,
+    margin: { l: 20, r: 80, t: 50, b: 60 },
+    title: { text: 'Mean IS by Strategy', font: { size: 13, color: '#102a43' }, x: 0.02 },
+    xaxis: { ...QF_LAYOUT.xaxis, tickangle: -20 },
+    yaxis: { ...QF_LAYOUT.yaxis, showticklabels: false },
+    height: 180,
+  };
+  Plotly.newPlot(isContainerId, [isTrace], isLayout, heatmapConfig);
+
+  // --- Completion Rate heatmap ---
+  if (!crVals.length) return;
+  const crTrace = {
+    x: strats,
+    y: ['Completion (%)'],
+    z: [crVals],
+    type: 'heatmap',
+    // Red (low completion) → green (high completion)
+    colorscale: [
+      [0, '#b91c1c'],
+      [0.35, '#f97316'],
+      [0.65, '#eab308'],
+      [1, '#15803d'],
+    ],
+    zmin: 0,
+    zmax: 100,
+    showscale: true,
+    colorbar: { thickness: 14, len: 0.8, title: { text: '%', side: 'right', font: { size: 11 } } },
+    hovertemplate: '%{x}<br>Completion: %{z:.0f}%<extra></extra>',
+    text: [crVals.map(v => v.toFixed(0) + '%')],
+    texttemplate: '%{text}',
+    textfont: { size: 13, color: '#ffffff' },
+  };
+  const crLayout = {
+    ...QF_LAYOUT,
+    margin: { l: 20, r: 80, t: 50, b: 60 },
+    title: { text: 'Completion Rate by Strategy', font: { size: 13, color: '#102a43' }, x: 0.02 },
+    xaxis: { ...QF_LAYOUT.xaxis, tickangle: -20 },
+    yaxis: { ...QF_LAYOUT.yaxis, showticklabels: false },
+    height: 180,
+  };
+  Plotly.newPlot(crContainerId, [crTrace], crLayout, heatmapConfig);
 }
