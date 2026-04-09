@@ -9,24 +9,79 @@
 
 **Live demo:** `python -m web.app` → [http://localhost:5001](http://localhost:5001)
 
-This repo contains both research and deployment assets (notebooks, tests, scripts, and web app). Cloud deployment notes: **[DEPLOY.md](DEPLOY.md)**.
+This repository contains the full research-to-demo stack: feature engineering, regime detection, an execution RL environment, benchmark strategies, evaluation scripts, and a web interface for judges.
+
+Cloud deployment notes: **[DEPLOY.md](DEPLOY.md)**.
+
+## Project at a glance
+
+**Problem:** execute large buy/sell orders with lower implementation shortfall than static schedules.
+
+**Idea:** blend market regime awareness with a constrained RL policy that adapts around TWAP, then benchmark on the same execution windows for fair comparison.
+
+**Why this is useful:** practitioners can compare transparent classical baselines and adaptive RL behavior, with an LLM explanation layer for governance and auditability.
+
+**What is included:**
+
+- Data pipeline for market, optional BBO imbalance, and optional news features
+- Regime detection and trend conditioning
+- Execution environment with realistic constraints/impact
+- PPO training/evaluation against TWAP, VWAP, Almgren-Chriss, Immediate
+- Flask web app with case study and interactive execution lab
 
 ---
 
 ## Table of contents
 
-1. [Quick start (for judges)](#1-quick-start-for-judges)
-2. [How to obtain data](#2-how-to-obtain-data)
-3. [Repository layout](#3-repository-layout)
-4. [Running the web application](#4-running-the-web-application)
-5. [Training & evaluation](#5-training--evaluation)
-6. [Environment variables](#6-environment-variables)
-7. [AI tools disclosure](#7-ai-tools-disclosure)
-8. [Licence](#8-licence)
+1. [Project idea](#1-project-idea)
+2. [Implementation overview](#2-implementation-overview)
+3. [Quick start (for judges)](#3-quick-start-for-judges)
+4. [How to obtain data](#4-how-to-obtain-data)
+5. [Repository layout](#5-repository-layout)
+6. [Running the web application](#6-running-the-web-application)
+7. [Training and evaluation](#7-training-and-evaluation)
+8. [Environment variables](#8-environment-variables)
+9. [AI tools disclosure](#9-ai-tools-disclosure)
+10. [Licence](#10-licence)
 
 ---
 
-## 1. Quick start (for judges)
+## 1. Project idea
+
+The project focuses on **algorithmic execution**, not alpha forecasting. The objective is to split a parent order into child orders over $T$ intervals while minimizing trading cost relative to a benchmark execution price.
+
+We optimize **implementation shortfall (IS)** in basis points:
+
+$$
+  \mathrm{IS}_{\text{bps}} = 10^4 \cdot \text{side} \cdot \frac{\bar{p}_{\text{arrival}} - \bar{p}_{\text{fill}}}{\bar{p}_{\text{arrival}}}
+$$
+
+where `side = +1` for sells and `side = -1` for buys.
+
+Core hypothesis:
+
+- Market conditions are non-stationary, so one fixed schedule is often suboptimal.
+- A regime-aware RL policy can improve execution quality by adjusting participation around a TWAP anchor.
+- Decisions should remain interpretable, so we add a governance layer that explains behavior in plain language.
+
+## 2. Implementation overview
+
+End-to-end flow in this repository:
+
+1. Build/load daily feature panels (`features_train/val/test.parquet`).
+2. Optionally enrich with BBO order-imbalance and news intensity.
+3. Detect market regimes (HMM with robust fallback).
+4. Run execution episodes in a Gymnasium environment with impact and risk penalties.
+5. Train/evaluate PPO and compare against TWAP/VWAP/Almgren-Chriss/Immediate.
+6. Surface results in a Flask app and case study report.
+
+Implementation principles used throughout:
+
+- **Path-aligned evaluation:** RL and benchmarks are compared on identical `(row_start, T)` windows.
+- **Constrained actions:** PPO learns bounded residuals around TWAP for stability.
+- **Reproducibility:** fixed eval starts and cached LLM outputs are stored in-repo.
+
+## 3. Quick start (for judges)
 
 ### Requirements
 
@@ -48,7 +103,7 @@ pip install -r requirements.txt
 ### Configure data path
 
 ```bash
-# Optional: point to the folder that contains features/ (see section 2)
+# Optional: point to the folder that contains features/ (see section 4)
 export CFA_DATA_ROOT="/absolute/path/to/your/data"
 ```
 
@@ -65,15 +120,15 @@ python -m web.app
 pytest -q
 ```
 
-The web app pre-computes the case study at startup (~10 s) and requires a trained PPO checkpoint under `models/` (see section 5 or use the provided `best_ppo_twap_gap.zip` if included).
+The web app pre-computes the case study at startup (~10 s) and requires a trained PPO checkpoint under `models/` (see section 7 or use the provided `best_ppo_twap_gap.zip` if included).
 
 ---
 
-## 2. How to obtain data
+## 4. How to obtain data
 
 All data sources are **publicly accessible** per competition rules (Rule 4.6). No proprietary terminals required.
 
-### 2.1 Stock price data (required)
+### 4.1 Stock price data (required)
 
 **Source:** any free stock API (e.g. Yahoo Finance via `yfinance`, Alpha Vantage, Polygon free tier, or a CRSP educational extract).
 
@@ -109,11 +164,11 @@ features/
 
 The loader then builds: `realised_vol_20` (internal), `sigma_daily`, `amihud_illiquidity`, `bid_ask_proxy`, `volume_to_spread`, `vix_aligned`.
 
-### 2.2 VIX data (included in features or downloadable)
+### 4.2 VIX data (included in features or downloadable)
 
 **Source:** [Cboe VIX historical data](https://www.cboe.com/tradable-products/vix/vix-historical-data/) — free CSV download, 1990–present. The pipeline expects a `vix` column in the parquet or merges it from a separate file.
 
-### 2.3 NASDAQ ITCH BBO order imbalance (optional, recommended)
+### 4.3 NASDAQ ITCH BBO order imbalance (optional, recommended)
 
 **Source:** [Databento](https://databento.com/portal/browse) — NASDAQ TotalView-ITCH **BBO-1m** schema.
 
@@ -134,7 +189,7 @@ python scripts/build_bbo_daily.py --symbols SPY
 
 Coverage starts **2019-01-02**; earlier rows use neutral OBI (0). The pipeline merges this automatically when `bbo_daily.parquet` exists.
 
-### 2.4 News sentiment counts (optional)
+### 4.4 News sentiment counts (optional)
 
 **Source:** [Finnhub](https://finnhub.io/register) — free tier, no credit card required.
 
@@ -150,7 +205,7 @@ python scripts/fetch_finnhub_news.py --symbol SPY --etf-proxy --max-constituents
 
 Writes `data/processed/news_daily_SPY.parquet`. The RL observation includes z-scored daily news intensity when this file exists.
 
-### 2.5 LLM governance (Anthropic Claude)
+### 4.5 LLM governance (Anthropic Claude)
 
 **Cost to reproduce: < $20 USD** (well within the competition threshold).
 
@@ -160,7 +215,7 @@ Writes `data/processed/news_daily_SPY.parquet`. The RL observation includes z-sc
 
 ---
 
-## 3. Repository layout
+## 5. Repository layout
 
 ```
 quantfin_exeter/
@@ -207,7 +262,7 @@ quantfin_exeter/
 
 ---
 
-## 4. Running the web application
+## 6. Running the web application
 
 ```bash
 python -m web.app
@@ -225,7 +280,7 @@ python -m web.app
 
 ---
 
-## 5. Training & evaluation
+## 7. Training and evaluation
 
 ### Quick eval (no training)
 
@@ -280,7 +335,7 @@ For head-to-head RL vs TWAP, the report includes **path-aligned metrics**:
 
 ---
 
-## 6. Environment variables
+## 8. Environment variables
 
 Copy `.env.example` → `.env`:
 
@@ -293,7 +348,7 @@ Copy `.env.example` → `.env`:
 
 ---
 
-## 7. AI tools disclosure
+## 9. AI tools disclosure
 
 Per competition Rule 4.1 (Transparency) and Rule 4.5 (Disclosure):
 
@@ -319,7 +374,7 @@ All generated code was reviewed, understood, and can be explained by the team.
 
 ---
 
-## 8. Licence
+## 10. Licence
 
 Released under the **MIT License** as required by competition rules (Rule 1.5).
 
