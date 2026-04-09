@@ -6,7 +6,8 @@ BBO coverage begins **2019-01-02** (not 2018). Earlier CRSP dates get ``order_im
 when merged (neutral fill).
 
 Usage:
-  export CFA_DATA_ROOT=/path/to/CFADATA
+    # Optional: override data root (defaults to ./deploy_data if present)
+    export CFA_DATA_ROOT=/path/to/deploy_data
   python scripts/build_bbo_daily.py
   python scripts/build_bbo_daily.py --symbols SPY AAPL
   python scripts/build_bbo_daily.py --csv /path/to/xnas-itch-...bbo-1m.csv

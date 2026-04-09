@@ -7,9 +7,9 @@
 
 > Institutional **optimal trade execution** using **regime-aware reinforcement learning** (PPO), **classical benchmarks** (TWAP / VWAP / Almgren–Chriss / Immediate), **NASDAQ ITCH order-book imbalance**, and an **LLM governance** layer (Anthropic Claude, cached for reproducibility).
 
-**Live demo (Deployed online):** → [https://cfadeployedteam18.onrender.com](https://cfadeployedteam18.onrender.com)
-
 **Live demo:** `python -m web.app` → [http://localhost:5001](http://localhost:5001)
+
+This repo contains both research and deployment assets (notebooks, tests, scripts, and web app). Cloud deployment notes: **[DEPLOY.md](DEPLOY.md)**.
 
 ---
 
@@ -48,44 +48,24 @@ pip install -r requirements.txt
 ### Configure data path
 
 ```bash
-# Point to the folder that contains features/ (see section 2)
+# Optional: point to the folder that contains features/ (see section 2)
 export CFA_DATA_ROOT="/absolute/path/to/your/data"
 ```
 
-Or copy `.env.example` → `.env` and fill in `CFA_DATA_ROOT` there (auto-loaded by the app).
+If omitted, the code auto-detects `./deploy_data` when present; legacy fallback is an external `CFADATA` directory. You can also copy `.env.example` → `.env` and set `CFA_DATA_ROOT` there.
 
 ### Run
 
 ```bash
 # Web application (recommended — includes Case Study, Execution Lab, User Manual)
 python -m web.app
-# Open http://localhost:5001/case-study
+# Open http://localhost:5001
 
 # Quick smoke test
 pytest -q
 ```
 
-The web app **pre-computes** the case study at startup (~10 s). It uses the same settings as `scripts/train.py` when evaluating with **`--order-notional-usd` > 0** (see §5): **\$5M** notional, **T = 10**, **TWAP-residual ±15%**, **relative-IS scale 2.0**, test split **SPY**, optional BBO/news merge if files exist.
-
-### Committed model (no training required)
-
-This repository includes:
-
-- **`models/best_ppo_twap_gap.zip`** — trained PPO checkpoint for SPY execution (eval-only / case study).
-- **`models/fixed_eval_starts.json`** — path-aligned evaluation windows shared by `train.py` and the web app.
-
-You do **not** need to run `--train` to verify the solution. After `pip install` and `CFA_DATA_ROOT`, use **`python -m web.app`** or **`python scripts/train.py --ticker SPY --order-notional-usd 5e6`** (eval-only loads `best_ppo_twap_gap.zip` automatically when `--load-model` is omitted).
-
-### Matching numbers vs the public deployment
-
-Use the **same** market data and optional microstructure files as the host you compare against:
-
-1. **`CFA_DATA_ROOT`** — identical `features_*.parquet`; for closest match to [the deployed demo](https://cfadeployedteam18.onrender.com/case-study), also mirror optional `data/processed/bbo_daily.parquet` and `news_daily_SPY.parquet` if the server has them.
-2. **`models/fixed_eval_starts.json`** — already in-repo; delete it only if you intentionally want new random windows (reported means will change).
-3. **Checkpoint choice:** **`python -m web.app`** runs a small **sweep** over recent `models/*.zip` files and picks the best on a validation subset (see `web/precompute.py`). If you add extra checkpoints beside `best_ppo_twap_gap.zip`, the UI might select a different policy than the committed default. For a **deterministic** match to the shipped checkpoint, either keep only the intended `.zip` files in `models/` or rely on **`train.py`** eval, which uses **`best_ppo_twap_gap.zip`** by default when not training.
-4. **CLI benchmark table:** `train.py` prints TWAP / VWAP / Almgren–Chriss / Immediate on the **same** row starts as the RL line when `fixed_eval_starts.json` is used (aligned with the case study logic).
-
-Then open **`/case-study`** or run **`python scripts/train.py --ticker SPY --order-notional-usd 5e6`** and compare the printed **Benchmarks** table. Override the checkpoint with **`--load-model path/to/other.zip`** if needed.
+The web app pre-computes the case study at startup (~10 s) and requires a trained PPO checkpoint under `models/` (see section 5 or use the provided `best_ppo_twap_gap.zip` if included).
 
 ---
 
@@ -197,8 +177,9 @@ quantfin_exeter/
 ├── data/
 │   ├── raw/                    # Large files (gitignored)
 │   ├── processed/              # bbo_daily.parquet, news (gitignored)
-│   ├── features/               # Train/val/test parquet (via CFA_DATA_ROOT)
 │   └── cached_llm/             # Committed JSON caches for judges
+├── deploy_data/
+│   └── features/               # Local train/val/test parquet splits (default when CFA_DATA_ROOT is unset)
 ├── notebooks/
 │   └── main_notebook.ipynb     # Narrative + figures
 ├── scripts/
@@ -219,7 +200,7 @@ quantfin_exeter/
 │   ├── llm_explainer.py        # Claude governance + cache
 │   ├── ui_rollout.py           # Single-episode rollout for UI
 │   └── utils.py
-├── models/                     # best_ppo_twap_gap.zip + fixed_eval_starts.json (tracked); other .zip gitignored
+├── models/                     # Includes best_ppo_twap_gap.zip + fixed_eval_starts.json (other checkpoints may be gitignored)
 ├── tests/
 └── logs/                       # TensorBoard (gitignored)
 ```
@@ -252,14 +233,7 @@ python -m web.app
 python scripts/train.py --ticker SPY --order-notional-usd 5e6
 ```
 
-With **`--order-notional-usd` > 0**, `train.py` automatically applies **`--residual-bound 0.15`** and **`--relative-is-scale 2.0`** if you omit them — matching **`web/precompute.py`** and the **Case Study** page. **Eval-only** loads **`models/best_ppo_twap_gap.zip`** automatically when that file exists (the committed checkpoint). Evaluation uses **`models/fixed_eval_starts.json`** when present (otherwise it creates one under `models/`).
-
-Use another checkpoint explicitly:
-
-```bash
-python scripts/train.py --ticker SPY --order-notional-usd 5e6 \
-  --load-model models/your_other.zip
-```
+Eval-only loads `models/best_ppo_twap_gap.zip` automatically when `--load-model` is omitted and that file exists.
 
 ### Train PPO
 
@@ -268,8 +242,6 @@ python scripts/train.py --ticker SPY --train --order-notional-usd 5e6 \
   --residual-bound 0.15 --relative-is-scale 2.0 --timesteps 300000
 ```
 
-(`--residual-bound` / `--relative-is-scale` are redundant here because physical mode defaults them to 0.15 and 2.0; kept explicit for clarity.)
-
 Saves `models/best_ppo_twap_gap.zip` when the path-aligned TWAP gap improves during training.
 
 ### Key training flags
@@ -277,13 +249,13 @@ Saves `models/best_ppo_twap_gap.zip` when the path-aligned TWAP gap improves dur
 | Flag | Default | Purpose |
 |---|---|---|
 | `--order-notional-usd` | 0 | USD order size (>0 enables physical mode) |
-| `--residual-bound` | **0.15** if physical\* | TWAP-residual action (± fraction from TWAP schedule) |
-| `--relative-is-scale` | **2.0** if physical\* | Per-bar improvement-over-TWAP reward scaling |
+| `--residual-bound` | 0.15 if physical* | TWAP-residual action (e.g. 0.15 = ±15% from TWAP) |
+| `--relative-is-scale` | 2.0 if physical* | Per-bar improvement-over-TWAP reward scaling |
 | `--timesteps` | 300000 | Training steps |
 | `--n-envs` | 1 | Vectorized rollouts |
 | `--eval-freq` | 25000 | Evaluate & save best checkpoint every N steps |
 
-\*When `--order-notional-usd > 0` and the flag is omitted. Pass your own values to override.
+\*Applied automatically when `--order-notional-usd > 0` and the flags are omitted.
 
 ### Scenario benchmarks
 
@@ -296,7 +268,7 @@ python scripts/scenario_benchmarks.py \
 
 ### Path-aligned evaluation
 
-**Case Study** and **`train.py`** evaluate RL and benchmarks on the **same** `(row_start, T)` windows when **`models/fixed_eval_starts.json`** is present (up to 200 windows; see `web/precompute.py`). If that file is missing, `train.py` **generates** it once; the web app then reuses it — so local numbers stay consistent across CLI and UI.
+`train.py` and the Case Study reuse `models/fixed_eval_starts.json` when present, so RL and benchmark comparisons are path-aligned on the same `(row_start, T)` windows. If it is missing, `train.py` generates it once.
 
 For head-to-head RL vs TWAP, the report includes **path-aligned metrics**:
 
