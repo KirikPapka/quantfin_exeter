@@ -21,7 +21,14 @@ def default_data_root() -> Path:
     env = os.environ.get("CFA_DATA_ROOT")
     if env:
         return Path(env).expanduser().resolve()
-    return project_root().parent.parent / "CFADATA"
+
+    root = project_root()
+    deploy_data = root / "deploy_data"
+    if (deploy_data / "features").is_dir():
+        return deploy_data
+
+    # Legacy fallback for local dev setups that keep CFADATA outside this repo.
+    return root.parent.parent / "CFADATA"
 
 
 def setup_logging(level: int = logging.INFO) -> None:

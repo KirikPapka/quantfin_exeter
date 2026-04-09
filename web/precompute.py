@@ -183,6 +183,7 @@ def _regime_chart_data(
 def _episode_chart_data(trajectory: pd.DataFrame) -> dict[str, Any]:
     return {
         "steps": trajectory["step"].tolist(),
+        "dates": trajectory["date"].tolist() if "date" in trajectory.columns else trajectory["step"].tolist(),
         "inventory": trajectory["inventory_after"].tolist(),
         "actions": trajectory["action_frac"].tolist(),
     }
@@ -193,6 +194,7 @@ def _benchmark_chart_data(bench_df: pd.DataFrame) -> dict[str, Any]:
         "strategies": bench_df["Strategy"].tolist(),
         "mean_is": bench_df["Mean_IS_bps"].tolist(),
         "std_is": bench_df["Std_IS_bps"].tolist(),
+        "completion_rates": bench_df["Completion_Rate"].tolist() if "Completion_Rate" in bench_df.columns else [],
     }
 
 

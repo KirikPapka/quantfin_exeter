@@ -9,8 +9,6 @@ __pycache__/
 .eggs/
 dist/
 build/
-*.manifest
-*.spec
 
 # --- Virtual environments ---
 .venv/
@@ -18,20 +16,15 @@ venv/
 ENV/
 env/
 
-# --- Test / type / lint caches ---
+# --- Test / lint caches ---
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.coverage
-htmlcov/
-.tox/
-.nox/
 
 # --- Jupyter ---
 .ipynb_checkpoints/
-*/.ipynb_checkpoints/
 
-# --- Environment & secrets (never commit) ---
+# --- Secrets (never commit) ---
 .env
 .env.local
 *.pem
@@ -41,26 +34,13 @@ htmlcov/
 Thumbs.db
 .idea/
 .vscode/
-*.swp
-*.swo
 
-# --- Project: large or machine-local data ---
+# --- Raw downloads (keep README only) ---
 data/raw/*
-!data/raw/.gitkeep
 !data/raw/README.md
 
-# Regenerate with scripts/build_bbo_daily.py
-data/processed/*.parquet
-
-# --- Models & training artifacts ---
-models/*.zip
-# Shipped for judges (no retraining required); keep this exception below the *.zip rule
-!models/best_ppo_twap_gap.zip
-models/ckpt/
+# --- Logs ---
 logs/
+models/ckpt/
 
-# --- Streamlit ---
-.streamlit/secrets.toml
-
-# --- Local clones / Cursor scratch (not part of this repo) ---
-quantfin_exeter-main/
+# Note: models/*.zip and deploy_data/features/*.parquet are NOT ignored — commit them for Render.

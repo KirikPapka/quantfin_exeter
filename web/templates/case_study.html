@@ -24,18 +24,18 @@
     <div class="rounded-2xl border border-navy-200 bg-white shadow-sm overflow-hidden">
       <div class="bg-navy-900 px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <h2 class="text-lg font-bold text-white">Benchmark results (mean IS)</h2>
-        <p class="text-navy-300 text-sm">Higher bps = better average sell price vs arrival (see User Manual)</p>
+        <p class="text-navy-300 text-sm">Higher = better average sell price vs arrival &mdash; we are <strong class="text-accent-400">closing</strong> a position</p>
       </div>
       <div class="p-6 md:p-8 grid md:grid-cols-2 gap-8">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-wider text-navy-400 mb-3">Key strategies</p>
+          <p class="text-xs font-semibold uppercase tracking-wider text-navy-400 mb-3">Key strategies at $5 M notional</p>
           <div class="overflow-x-auto rounded-xl border border-navy-100">
             <table class="w-full text-sm">
               <thead>
                 <tr class="bg-navy-50 text-left text-navy-600">
                   <th class="px-4 py-3 font-semibold">Strategy</th>
-                  <th class="px-4 py-3 font-semibold">Mean IS (bps)</th>
-                  <th class="px-4 py-3 font-semibold">Std (bps)</th>
+                  <th class="px-4 py-3 font-semibold">Mean IS (USD)</th>
+                  <th class="px-4 py-3 font-semibold">Std (USD)</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-navy-100 text-navy-800">
@@ -43,24 +43,24 @@
                   {% for row in showcase_rows %}
                   <tr>
                     <td class="px-4 py-3 font-medium">{{ row.Strategy }}</td>
-                    <td class="px-4 py-3 font-mono">{{ "%.2f"|format(row.Mean_IS_bps) }}</td>
-                    <td class="px-4 py-3 font-mono text-navy-500">{{ "%.2f"|format(row.Std_IS_bps) }}</td>
+                    <td class="px-4 py-3 font-mono">${{ "{:,.0f}".format(row.Mean_IS_usd) }} <span class="text-navy-400 text-xs">({{ "%.1f"|format(row.Mean_IS_bps) }} bps)</span></td>
+                    <td class="px-4 py-3 font-mono text-navy-500">±${{ "{:,.0f}".format(row.Std_IS_usd) }}</td>
                   </tr>
                   {% endfor %}
                 {% else %}
                   <tr>
                     <td class="px-4 py-3 font-medium">RL</td>
-                    <td class="px-4 py-3 font-mono">73.29</td>
+                    <td class="px-4 py-3 font-mono">$36,645 <span class="text-navy-400 text-xs">(73.29 bps)</span></td>
                     <td class="px-4 py-3 font-mono text-navy-500">—</td>
                   </tr>
                   <tr>
                     <td class="px-4 py-3 font-medium">TWAP</td>
-                    <td class="px-4 py-3 font-mono">53.44</td>
+                    <td class="px-4 py-3 font-mono">$26,720 <span class="text-navy-400 text-xs">(53.44 bps)</span></td>
                     <td class="px-4 py-3 font-mono text-navy-500">—</td>
                   </tr>
                   <tr>
                     <td class="px-4 py-3 font-medium">Immediate</td>
-                    <td class="px-4 py-3 font-mono">6.38</td>
+                    <td class="px-4 py-3 font-mono">$3,190 <span class="text-navy-400 text-xs">(6.38 bps)</span></td>
                     <td class="px-4 py-3 font-mono text-navy-500">—</td>
                   </tr>
                 {% endif %}
@@ -214,29 +214,36 @@
     </ul>
 
     {% if case.benchmarks is not none %}
-    <div class="overflow-x-auto rounded-xl border border-navy-100">
-      <table class="bench-table">
-        <thead>
-          <tr>
-            <th>Strategy</th>
-            <th>Mean IS (bps)</th>
-            <th>Std IS (bps)</th>
-            <th>Completion Rate</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in case.benchmarks %}
-          <tr class="{{ 'rl-row' if row.Strategy == 'RL' }}">
-            <td class="font-medium">{{ row.Strategy }}</td>
-            <td>{{ "%.2f"|format(row.Mean_IS_bps) }}</td>
-            <td>{{ "%.2f"|format(row.Std_IS_bps) }}</td>
-            <td>{{ "%.0f"|format(row.Completion_Rate * 100) }}%</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <p class="text-xs text-navy-400 mb-3">Each cell is colour-coded from <span class="text-red-600 font-medium">red</span> (worse) to <span class="text-emerald-600 font-medium">green</span> (better): higher mean IS is better for a sell, and higher completion is better. Values are averaged over many execution windows.</p>
+    <div class="grid md:grid-cols-2 gap-4 mb-2">
+      <div id="heatmap-is" class="rounded-xl overflow-hidden border border-navy-100 bg-white"></div>
+      <div id="heatmap-cr" class="rounded-xl overflow-hidden border border-navy-100 bg-white"></div>
     </div>
-    <div id="benchmark-chart" class="mt-6 rounded-xl overflow-hidden border border-navy-100" style="height:320px;"></div>
+    <details class="mt-4">
+      <summary class="cursor-pointer text-sm font-semibold text-navy-500 hover:text-navy-800 transition-colors">Show full benchmark table</summary>
+      <div class="overflow-x-auto rounded-xl border border-navy-100 mt-3">
+        <table class="bench-table">
+          <thead>
+            <tr>
+              <th>Strategy</th>
+              <th>Mean IS (bps)</th>
+              <th>Std IS (bps)</th>
+              <th>Completion Rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in case.benchmarks %}
+            <tr class="{{ 'rl-row' if row.Strategy == 'RL' }}">
+              <td class="font-medium">{{ row.Strategy }}</td>
+              <td>{{ "%.2f"|format(row.Mean_IS_bps) }}</td>
+              <td>{{ "%.2f"|format(row.Std_IS_bps) }}</td>
+              <td>{{ "%.0f"|format(row.Completion_Rate * 100) }}%</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
     {% else %}
     <div class="bg-navy-50 rounded-xl p-8 text-center text-navy-400">
       <p>Benchmark data will appear here when data is available. Configure <code>CFA_DATA_ROOT</code> and restart.</p>
@@ -303,7 +310,7 @@
     renderEpisodeChart('episode-chart', caseData.episode_chart);
   }
   if (caseData.benchmark_chart) {
-    renderBenchmarkChart('benchmark-chart', caseData.benchmark_chart);
+    renderBenchmarkHeatmaps('heatmap-is', 'heatmap-cr', caseData.benchmark_chart);
   }
 </script>
 {% endblock %}

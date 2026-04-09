@@ -1,0 +1,5 @@
+{
+  "model": "offline-template",
+  "explanation": "In the calm regime (id 0), the desk executed 25.0% of the remaining book this interval, achieving ~4.5 bps implementation shortfall versus TWAP ~5.0 bps and Almgren\u2013Chriss ~4.8 bps. Note: because this is a sell (position close), a higher IS in bps is better \u2014 it reflects a higher average execution price relative to arrival. Daily volatility is about 1.80% with Amihud liquidity 0.0000. The execution pace balances market impact against inventory risk, with 60.0% of the original order still to work.",
+  "prompt_hash": "fc039754024503f5"
+}

@@ -228,12 +228,8 @@ terminal_inventory_penalty = 5.0</pre>
             <dd class="mt-1">Trained PPO checkpoint from <code>models/</code> vs <strong>random</strong> agent baseline.</dd>
           </div>
           <div>
-            <dt class="font-bold text-navy-900">Episode seed</dt>
-            <dd class="mt-1">RNG seed for sampling the episode start index (when resampling is enabled).</dd>
-          </div>
-          <div>
-            <dt class="font-bold text-navy-900">Benchmark episodes</dt>
-            <dd class="mt-1">Number of evaluation windows for aggregate benchmark table; default <strong>200</strong>, allowed up to <strong>500</strong>.</dd>
+            <dt class="font-bold text-navy-900">Execution Start Date</dt>
+            <dd class="mt-1">Calendar date the execution program begins. The episode and all benchmarks are evaluated on the same <code>T</code>-day window starting from this date. Non-trading days (weekends, holidays) snap backward to the nearest previous session.</dd>
           </div>
         </dl>
       </section>
