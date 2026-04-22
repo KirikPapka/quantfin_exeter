@@ -108,12 +108,17 @@ def _init_exec_lab_cache() -> None:
 
     best = ROOT / "models" / "best_ppo_twap_gap.zip"
     if best.is_file():
-        from stable_baselines3 import PPO
+        try:
+            from stable_baselines3 import PPO
 
-        _LAB_CACHE_PPO_RESOLVED = str(best.resolve())
-        logger.info("Exec lab cache: loading PPO once at %s", _LAB_CACHE_PPO_RESOLVED)
-        _LAB_CACHE_PPO_AGENT = PPO.load(_LAB_CACHE_PPO_RESOLVED)
-        logger.info("Exec lab cache: PPO ready (workers will reuse; no torch.load per request)")
+            _LAB_CACHE_PPO_RESOLVED = str(best.resolve())
+            logger.info("Exec lab cache: loading PPO once at %s", _LAB_CACHE_PPO_RESOLVED)
+            _LAB_CACHE_PPO_AGENT = PPO.load(_LAB_CACHE_PPO_RESOLVED)
+            logger.info("Exec lab cache: PPO ready (workers will reuse; no torch.load per request)")
+        except Exception as exc:
+            _LAB_CACHE_PPO_RESOLVED = None
+            _LAB_CACHE_PPO_AGENT = None
+            logger.warning("Exec lab cache: could not preload PPO (%s)", exc)
     else:
         logger.info("Exec lab cache: no best_ppo_twap_gap.zip — PPO routes cold-load or use random")
 

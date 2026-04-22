@@ -33,7 +33,7 @@
   <pre class="mt-2 bg-navy-50 rounded-lg p-4 text-xs text-navy-700 font-mono overflow-x-auto">{{ rl_report }}</pre>
 </details>
 {% endif %}
-<div id="bench-plot" style="height:300px;" class="rounded-xl overflow-hidden"></div>
+<div id="bench-plot" class="chart-shell chart-short rounded-xl overflow-hidden"></div>
 <script>
   renderBenchmarkChart('bench-plot', {{ chart_json | safe }});
 </script>

@@ -21,7 +21,7 @@
     <p class="text-xl font-bold text-navy-900">${{ "%.2f"|format(summary.arrival) }}</p>
   </div>
 </div>
-<div id="episode-plot" style="height:340px;" class="rounded-xl overflow-hidden"></div>
+<div id="episode-plot" class="chart-shell rounded-xl overflow-hidden"></div>
 <script>
   renderEpisodeChart('episode-plot', {{ chart_json | safe }});
 </script>

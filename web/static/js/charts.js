@@ -20,7 +20,7 @@ const QF_COLORS = {
 };
 
 const QF_LAYOUT = {
-  font:      { family: 'Inter, system-ui, sans-serif', size: 12, color: '#334e68' },
+  font:      { family: 'Sora, system-ui, sans-serif', size: 12, color: '#334e68' },
   paper_bgcolor: 'rgba(0,0,0,0)',
   plot_bgcolor:  '#ffffff',
   margin:    { l: 56, r: 24, t: 40, b: 44 },
@@ -32,6 +32,10 @@ const QF_LAYOUT = {
 
 const REGIME_FILLS = [QF_COLORS.calm, QF_COLORS.vol, QF_COLORS.stressed];
 const REGIME_NAMES = ['Calm', 'Elevated Volatility', 'Stressed'];
+
+function _isCompactViewport() {
+  return window.matchMedia('(max-width: 768px)').matches;
+}
 
 
 function _regimeShapes(dates, regimes) {
@@ -66,6 +70,7 @@ function _regimeShapes(dates, regimes) {
  */
 function renderRegimeChart(containerId, data) {
   if (!data || !data.dates) return;
+  const compact = _isCompactViewport();
   const trace = {
     x: data.dates,
     y: data.close,
@@ -77,14 +82,15 @@ function renderRegimeChart(containerId, data) {
   };
   const layout = {
     ...QF_LAYOUT,
-    title: { text: 'SPY Price with Market Regimes', font: { size: 14, color: '#102a43' }, x: 0.02 },
+    title: { text: 'SPY Price with Market Regimes', font: { size: compact ? 12 : 14, color: '#102a43' }, x: 0.02 },
+    margin: compact ? { l: 46, r: 10, t: 34, b: 36 } : QF_LAYOUT.margin,
     shapes: _regimeShapes(data.dates, data.regimes),
-    xaxis: { ...QF_LAYOUT.xaxis, type: 'date' },
-    yaxis: { ...QF_LAYOUT.yaxis, title: { text: 'Price ($)', standoff: 8 } },
+    xaxis: { ...QF_LAYOUT.xaxis, type: 'date', tickfont: { size: compact ? 10 : 12 } },
+    yaxis: { ...QF_LAYOUT.yaxis, title: { text: 'Price ($)', standoff: 8 }, tickfont: { size: compact ? 10 : 12 } },
     showlegend: false,
     height: null,
   };
-  Plotly.newPlot(containerId, [trace], layout, { responsive: true, displayModeBar: true, modeBarButtonsToRemove: ['lasso2d','select2d'] });
+  Plotly.newPlot(containerId, [trace], layout, { responsive: true, displayModeBar: !compact, modeBarButtonsToRemove: ['lasso2d','select2d'] });
 }
 
 
@@ -95,6 +101,7 @@ function renderRegimeChart(containerId, data) {
  */
 function renderEpisodeChart(containerId, data) {
   if (!data || !data.steps) return;
+  const compact = _isCompactViewport();
   const useDates = data.dates && data.dates.length === data.steps.length &&
                    typeof data.dates[0] === 'string' && data.dates[0].match(/^\d{4}-\d{2}-\d{2}/);
   const xValues = useDates ? data.dates : data.steps;
@@ -123,11 +130,18 @@ function renderEpisodeChart(containerId, data) {
   };
   const layout = {
     ...QF_LAYOUT,
-    margin: { ...QF_LAYOUT.margin, t: 52, r: 64, b: 48 },
-    xaxis: { ...QF_LAYOUT.xaxis, title: { text: xTitle, standoff: 4 }, type: xType, ...(useDates ? {} : { dtick: 1 }) },
+    margin: compact ? { l: 44, r: 52, t: 48, b: 36 } : { ...QF_LAYOUT.margin, t: 52, r: 64, b: 48 },
+    xaxis: {
+      ...QF_LAYOUT.xaxis,
+      title: { text: xTitle, standoff: 4 },
+      tickfont: { size: compact ? 10 : 12 },
+      type: xType,
+      ...(useDates ? { tickangle: compact ? -24 : 0 } : { dtick: 1 }),
+    },
     yaxis: {
       ...QF_LAYOUT.yaxis,
       title: { text: 'Inventory', font: { color: QF_COLORS.navy }, standoff: 10 },
+      tickfont: { size: compact ? 10 : 12 },
       side: 'left',
       rangemode: 'tozero',
     },
@@ -138,20 +152,33 @@ function renderEpisodeChart(containerId, data) {
       rangemode: 'tozero',
       range: [0, 1.05],
       gridcolor: 'rgba(0,0,0,0)',
+      tickfont: { size: compact ? 10 : 12 },
     },
-    legend: {
-      x: 0.5,
-      y: 1.04,
-      xanchor: 'center',
-      yanchor: 'bottom',
-      orientation: 'h',
-      font: { size: 11 },
-      bgcolor: 'rgba(255,255,255,0.95)',
-      bordercolor: '#e2e8f0',
-      borderwidth: 1,
-    },
+    legend: compact
+      ? {
+          x: 0,
+          y: 1.1,
+          xanchor: 'left',
+          yanchor: 'bottom',
+          orientation: 'h',
+          font: { size: 10 },
+          bgcolor: 'rgba(255,255,255,0.9)',
+          bordercolor: '#e2e8f0',
+          borderwidth: 1,
+        }
+      : {
+          x: 0.5,
+          y: 1.04,
+          xanchor: 'center',
+          yanchor: 'bottom',
+          orientation: 'h',
+          font: { size: 11 },
+          bgcolor: 'rgba(255,255,255,0.95)',
+          bordercolor: '#e2e8f0',
+          borderwidth: 1,
+        },
     barmode: 'overlay',
-    bargap: 0.3,
+    bargap: compact ? 0.22 : 0.3,
     height: null,
   };
   Plotly.newPlot(containerId, [invTrace, actTrace], layout, { responsive: true, displayModeBar: false });
@@ -165,6 +192,7 @@ function renderEpisodeChart(containerId, data) {
  */
 function renderBenchmarkChart(containerId, data) {
   if (!data || !data.strategies) return;
+  const compact = _isCompactViewport();
   const colors = data.strategies.map(s =>
     s === 'RL' ? QF_COLORS.accent : QF_COLORS.navyMid
   );
@@ -184,11 +212,12 @@ function renderBenchmarkChart(containerId, data) {
   };
   const layout = {
     ...QF_LAYOUT,
-    title: { text: 'Mean Implementation Shortfall by Strategy', font: { size: 14, color: '#102a43' }, x: 0.02 },
-    xaxis: { ...QF_LAYOUT.xaxis, title: '' },
-    yaxis: { ...QF_LAYOUT.yaxis, title: { text: 'IS (bps)', standoff: 8 } },
+    title: { text: 'Mean Implementation Shortfall by Strategy', font: { size: compact ? 12 : 14, color: '#102a43' }, x: 0.02 },
+    margin: compact ? { l: 44, r: 10, t: 36, b: 40 } : QF_LAYOUT.margin,
+    xaxis: { ...QF_LAYOUT.xaxis, title: '', tickangle: compact ? -24 : 0, tickfont: { size: compact ? 10 : 12 } },
+    yaxis: { ...QF_LAYOUT.yaxis, title: { text: 'IS (bps)', standoff: 8 }, tickfont: { size: compact ? 10 : 12 } },
     showlegend: false,
-    bargap: 0.35,
+    bargap: compact ? 0.22 : 0.35,
     height: null,
   };
   Plotly.newPlot(containerId, [trace], layout, { responsive: true, displayModeBar: false });
@@ -203,6 +232,7 @@ function renderBenchmarkChart(containerId, data) {
  */
 function renderBenchmarkHeatmaps(isContainerId, crContainerId, data) {
   if (!data || !data.strategies) return;
+  const compact = _isCompactViewport();
 
   const strats = data.strategies;
   const isVals = data.mean_is || [];
@@ -224,19 +254,19 @@ function renderBenchmarkHeatmaps(isContainerId, crContainerId, data) {
       [1, '#15803d'],
     ],
     showscale: true,
-    colorbar: { thickness: 14, len: 0.8, title: { text: 'bps', side: 'right', font: { size: 11 } } },
+    colorbar: { thickness: compact ? 10 : 14, len: compact ? 0.74 : 0.8, title: { text: 'bps', side: 'right', font: { size: compact ? 10 : 11 } } },
     hovertemplate: '%{x}<br>Mean IS: %{z:.2f} bps<extra></extra>',
     text: [isVals.map(v => v.toFixed(1) + ' bps')],
     texttemplate: '%{text}',
-    textfont: { size: 13, color: '#ffffff' },
+    textfont: { size: compact ? 11 : 13, color: '#ffffff' },
   };
   const isLayout = {
     ...QF_LAYOUT,
-    margin: { l: 20, r: 80, t: 50, b: 60 },
-    title: { text: 'Mean IS by Strategy', font: { size: 13, color: '#102a43' }, x: 0.02 },
-    xaxis: { ...QF_LAYOUT.xaxis, tickangle: -20 },
+    margin: compact ? { l: 12, r: 52, t: 40, b: 48 } : { l: 20, r: 80, t: 50, b: 60 },
+    title: { text: 'Mean IS by Strategy', font: { size: compact ? 11 : 13, color: '#102a43' }, x: 0.02 },
+    xaxis: { ...QF_LAYOUT.xaxis, tickangle: compact ? -26 : -20, tickfont: { size: compact ? 10 : 12 } },
     yaxis: { ...QF_LAYOUT.yaxis, showticklabels: false },
-    height: 180,
+    height: compact ? 150 : 180,
   };
   Plotly.newPlot(isContainerId, [isTrace], isLayout, heatmapConfig);
 
@@ -257,19 +287,19 @@ function renderBenchmarkHeatmaps(isContainerId, crContainerId, data) {
     zmin: 0,
     zmax: 100,
     showscale: true,
-    colorbar: { thickness: 14, len: 0.8, title: { text: '%', side: 'right', font: { size: 11 } } },
+    colorbar: { thickness: compact ? 10 : 14, len: compact ? 0.74 : 0.8, title: { text: '%', side: 'right', font: { size: compact ? 10 : 11 } } },
     hovertemplate: '%{x}<br>Completion: %{z:.0f}%<extra></extra>',
     text: [crVals.map(v => v.toFixed(0) + '%')],
     texttemplate: '%{text}',
-    textfont: { size: 13, color: '#ffffff' },
+    textfont: { size: compact ? 11 : 13, color: '#ffffff' },
   };
   const crLayout = {
     ...QF_LAYOUT,
-    margin: { l: 20, r: 80, t: 50, b: 60 },
-    title: { text: 'Completion Rate by Strategy', font: { size: 13, color: '#102a43' }, x: 0.02 },
-    xaxis: { ...QF_LAYOUT.xaxis, tickangle: -20 },
+    margin: compact ? { l: 12, r: 52, t: 40, b: 48 } : { l: 20, r: 80, t: 50, b: 60 },
+    title: { text: 'Completion Rate by Strategy', font: { size: compact ? 11 : 13, color: '#102a43' }, x: 0.02 },
+    xaxis: { ...QF_LAYOUT.xaxis, tickangle: compact ? -26 : -20, tickfont: { size: compact ? 10 : 12 } },
     yaxis: { ...QF_LAYOUT.yaxis, showticklabels: false },
-    height: 180,
+    height: compact ? 150 : 180,
   };
   Plotly.newPlot(crContainerId, [crTrace], crLayout, heatmapConfig);
 }

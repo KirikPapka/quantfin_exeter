@@ -3,7 +3,7 @@
   {{ error }}
 </div>
 {% else %}
-<div id="regime-plot" style="height:360px;" class="rounded-xl overflow-hidden"></div>
+<div id="regime-plot" class="chart-shell rounded-xl overflow-hidden"></div>
 {% if summary %}
 <div class="mt-4 grid grid-cols-2 md:grid-cols-{{ summary|length }} gap-3">
   {% for row in summary %}

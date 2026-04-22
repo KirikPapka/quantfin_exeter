@@ -5,21 +5,21 @@
 <div class="page-light">
 
 <!-- Hero Banner -->
-<section class="bg-navy-950 pt-28 pb-12 relative overflow-hidden">
+<section class="bg-navy-950 pt-24 sm:pt-28 pb-10 sm:pb-12 relative overflow-hidden">
   <div class="absolute inset-0 opacity-30">
     <div class="absolute inset-0" style="background:radial-gradient(ellipse 50% 60% at 30% 50%, rgba(99,179,237,0.1), transparent 60%)"></div>
   </div>
-  <div class="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
     <p class="text-accent-400 font-semibold text-sm uppercase tracking-wider mb-3">Interactive</p>
     <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">Execution Lab</h1>
-    <p class="text-navy-300 text-lg max-w-2xl">
+    <p class="text-navy-300 text-base sm:text-lg max-w-2xl">
       Configure parameters and run the full pipeline: regime detection, RL episode, benchmark comparison, and LLM governance.
     </p>
   </div>
 </section>
 
-<div class="max-w-7xl mx-auto px-6 lg:px-8 py-10">
-  <div class="grid lg:grid-cols-12 gap-8">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+  <div class="grid lg:grid-cols-12 gap-6 lg:gap-8">
 
     <!-- ====== LEFT: Configuration Panel ====== -->
     <div class="lg:col-span-3">
@@ -68,7 +68,7 @@
               Execution Start Date
               <span class="relative group inline-flex items-center ml-1 cursor-default">
                 <svg class="w-3.5 h-3.5 text-navy-400 hover:text-navy-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 16v-4m0-4h.01"/></svg>
-                <span class="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-60 rounded-lg bg-navy-900 text-white text-xs leading-relaxed px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg">
+                <span class="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-52 sm:w-60 rounded-lg bg-navy-900 text-white text-xs leading-relaxed px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg">
                   The calendar date the execution program begins. The episode and all benchmarks are evaluated on the same {{ horizon_T }}-day window starting from this date. Non-trading days snap to the next session.
                 </span>
               </span>
@@ -90,7 +90,7 @@
             <span class="btn-label">Run Full Pipeline</span>
             <span id="run-all-spinner" class="htmx-indicator"><span class="spinner"></span></span>
           </button>
-          <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <button class="btn-secondary flex items-center justify-center gap-1 text-xs"
                     hx-post="/api/regimes"
                     hx-include="#split, #n_reg"
@@ -113,12 +113,12 @@
     </div>
 
     <!-- ====== RIGHT: Results ====== -->
-    <div class="lg:col-span-9 relative" id="results-wrapper">
+    <div class="lg:col-span-9 relative min-w-0" id="results-wrapper">
       <!-- Full pipeline loading overlay — lives outside #results-container so HTMX swap never destroys it -->
       <div id="pipeline-overlay" class="hidden absolute inset-0 z-30 flex flex-col items-center justify-center rounded-2xl bg-white/80 backdrop-blur-sm border border-navy-100 shadow-inner" style="min-height:200px;">
         <span class="spinner" style="width:36px;height:36px;border-width:3px;border-color:rgba(15,23,42,0.12);border-top-color:#f59e0b;"></span>
-        <p class="mt-4 text-sm font-semibold text-navy-700">Running pipeline&hellip;</p>
-        <p class="text-xs text-navy-400 mt-1">Regime detection &rarr; RL episode &rarr; benchmarks &rarr; governance</p>
+        <p class="mt-4 text-sm font-semibold text-navy-700 text-center px-4">Running pipeline&hellip;</p>
+        <p class="text-xs text-navy-400 mt-1 text-center px-4">Regime detection &rarr; RL episode &rarr; benchmarks &rarr; governance</p>
       </div>
 
       <div id="results-container">

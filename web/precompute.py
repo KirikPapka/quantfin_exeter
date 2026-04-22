@@ -257,7 +257,11 @@ def precompute_case_study(
     else:
         logger.info("Case study: no fixed_eval_starts.json or none valid — using random episode draws")
 
-    agent, _chosen_ckpt = _choose_best_ppo_for_case_study(df, T, bp, fixed_starts, models_dir)
+    try:
+        agent, _chosen_ckpt = _choose_best_ppo_for_case_study(df, T, bp, fixed_starts, models_dir)
+    except Exception as exc:
+        logger.warning("Case study PPO selection failed: %s", exc)
+        agent, _chosen_ckpt = None, None
     roll_agent = agent if agent is not None else _RandomAgent(42)
     if agent is None:
         logger.info("Case study: no PPO checkpoints; using random agent")
