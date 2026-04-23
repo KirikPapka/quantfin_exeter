@@ -1,0 +1,132 @@
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+\title{QuantFin Exeter Codebase Guide}
+\author{Team 18 Project Documentation}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{What This Repository Is}
+QuantFin Exeter is an optimal execution research and demo stack. It combines:
+\begin{itemize}[leftmargin=1.2em]
+    \item Data processing (market, optional BBO, optional news features),
+    \item Regime-aware modeling and synthetic scenario generation,
+    \item Reinforcement-learning and classical execution benchmarks,
+    \item A Flask web app for an interactive case study and execution lab.
+\end{itemize}
+
+\section{Top-Level Structure}
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.28\textwidth} >{\raggedright\arraybackslash}p{0.66\textwidth}}
+\textbf{Path} & \textbf{Purpose} \\
+\hline
+\texttt{README.md} & Main onboarding doc: setup, project overview, and run instructions. \\
+\texttt{requirements.txt}, \texttt{environment.yml} & Python dependency definitions (pip and conda styles). \\
+\texttt{pytest.ini} & Test discovery and pytest configuration. \\
+\texttt{build.sh}, \texttt{Procfile}, \texttt{runtime.txt}, \texttt{DEPLOY.md} & Deployment/build metadata for local and hosted execution. \\
+\texttt{data/} & Main data workspace (raw, processed, and LLM cache artifacts). \\
+\texttt{deploy\_data/} & Deployment-time feature assets consumed by hosted app workflows. \\
+\texttt{models/} & Trained model artifacts and evaluation metadata (for example fixed eval starts). \\
+\texttt{scripts/} & CLI entrypoints for training, benchmarking, feature refresh, and demos. \\
+\texttt{src/} & Core Python package with domain logic (env, agent, pipeline, benchmarks, utilities). \\
+\texttt{tests/} & Unit/integration-style tests for core modules and web-facing logic. \\
+\texttt{web/} & Flask application package (routes, precompute logic, static assets, templates). \\
+\texttt{notebooks/} & Exploratory notebook(s) used during analysis and experimentation. \\
+\end{longtable}
+
+\section{Data and Model Directories}
+\subsection*{\texttt{data/}}
+\begin{itemize}[leftmargin=1.2em]
+    \item \texttt{raw/}: Original ingested datasets.
+    \item \texttt{processed/}: Cleaned/feature-enriched datasets used by training/eval pipelines.
+    \item \texttt{cached\_llm/}: Cached JSON responses to avoid repeated LLM calls and speed up demos.
+\end{itemize}
+
+\subsection*{\texttt{models/}}
+\begin{itemize}[leftmargin=1.2em]
+    \item Stores RL checkpoints (for example PPO zip files) and support JSON artifacts.
+    \item \texttt{fixed\_eval\_starts.json}: deterministic evaluation windows to keep runs comparable.
+\end{itemize}
+
+\section{Core Package (\texttt{src/})}
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.34\textwidth} >{\raggedright\arraybackslash}p{0.60\textwidth}}
+\textbf{File} & \textbf{What It Does} \\
+\hline
+\texttt{\_\_init\_\_.py} & Package metadata/version marker. \\
+\texttt{data\_pipeline.py} & Loads and joins market data, BBO features, and optional news features into train/val/test splits. \\
+\texttt{bbo\_pipeline.py} & Bid/ask and microstructure feature engineering pipeline used by training/eval datasets. \\
+\texttt{news\_features.py} & Builds ETF/news sentiment-style signals and merge-ready news feature frames. \\
+\texttt{finnhub\_etf.py} & Finnhub helper utilities (for holdings/news retrieval and normalization). \\
+\texttt{trading\_env.py} & Gym-style optimal execution environment, reward mechanics, and institutional constraints. \\
+\texttt{execution\_impact.py} & Execution cost/impact model utilities used by environment and benchmarking logic. \\
+\texttt{rl\_agent.py} & RL training/evaluation orchestration (PPO/SAC hooks, reports, fixed-start eval helpers). \\
+\texttt{offline\_cql.py} & Offline RL baseline components (CQL-style training/evaluation routines). \\
+\texttt{bc\_warmstart.py} & Behavioral-cloning warm start for policy initialization before RL finetuning. \\
+\texttt{ensemble.py} & Ensemble policy training/loading and combination logic for multiple specialist models. \\
+\texttt{regime\_detector.py} & Regime classification (for example HMM-style) and regime diagnostics summaries. \\
+\texttt{trend\_classifier.py} & Trend labels/signals used for regime-aware switching and scenario interpretation. \\
+\texttt{regime\_switching.py} & Meta-policy that routes control between primary/specialist/TWAP fallback policies by regime. \\
+\texttt{scenario\_paths.py} & Synthetic path/scenario generators (flat/up/down and related augmentation helpers). \\
+\texttt{benchmarks.py} & Classical benchmark suite (TWAP/VWAP/Almgren-Chriss style comparisons and score tables). \\
+\texttt{ui\_rollout.py} & UI-focused rollout/evaluation helper producing structured outputs for the web layer. \\
+\texttt{llm\_explainer.py} & Narrative explanation layer (with caching) for case-study style textual interpretation. \\
+\texttt{utils.py} & Shared utility helpers (logging, seeds, paths, and reusable project-wide helpers). \\
+\end{longtable}
+
+\section{Scripts (\texttt{scripts/})}
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.34\textwidth} >{\raggedright\arraybackslash}p{0.60\textwidth}}
+\textbf{Script} & \textbf{Use Case} \\
+\hline
+\texttt{train.py} & Main experiment runner: load data, configure env/regime logic, train/evaluate RL, compare against benchmarks. \\
+\texttt{scenario\_benchmarks.py} & Runs RL and classical baselines on synthetic scenarios (flat/up/down) for stress testing. \\
+\texttt{build\_bbo\_daily.py} & Builds or refreshes daily BBO-derived features for downstream data pipeline usage. \\
+\texttt{fetch\_finnhub\_news.py} & Pulls Finnhub news/related metadata and prepares local data artifacts. \\
+\texttt{llm\_demo.py} & Lightweight demo harness for explanation generation/caching flow. \\
+\end{longtable}
+
+\section{Web App (\texttt{web/})}
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.34\textwidth} >{\raggedright\arraybackslash}p{0.60\textwidth}}
+\textbf{Path} & \textbf{Role in Web Layer} \\
+\hline
+\texttt{web/app.py} & Flask entrypoint with routes, startup cache/precompute hooks, and execution-lab request handling. \\
+\texttt{web/precompute.py} & Case study precomputation and data packaging for templates/charts. \\
+\texttt{web/templates/} & Jinja templates: page shells, views, and partial fragments rendered by Flask routes. \\
+\texttt{web/static/css/} & App styling (tokens, responsive layout, component-level visual system). \\
+\texttt{web/static/js/} & Frontend behavior (chart rendering, run-page interactions, UX helpers). \\
+\end{longtable}
+
+\section{Tests (\texttt{tests/})}
+The test suite mirrors major project capabilities.
+\begin{itemize}[leftmargin=1.2em]
+    \item \texttt{test\_trading\_env.py}, \texttt{test\_execution\_impact.py}: environment mechanics and impact model behavior.
+    \item \texttt{test\_benchmarks.py}, \texttt{test\_scenario\_paths.py}: benchmark/scenario correctness.
+    \item \texttt{test\_regime\_detector.py}: regime model outputs and diagnostics.
+    \item \texttt{test\_news\_features.py}, \texttt{test\_finnhub\_etf.py}: news and ETF feature/data utilities.
+    \item \texttt{test\_bbo\_pipeline.py}: BBO feature processing logic.
+    \item \texttt{test\_ui\_rollout.py}, \texttt{test\_rl\_eval.py}: rollout/report formatting and RL evaluation paths.
+\end{itemize}
+
+\section{Typical Workflow}
+\begin{enumerate}[leftmargin=1.4em]
+    \item Prepare data/features: build BBO/news assets and verify splits.
+    \item Train/evaluate models: run \texttt{scripts/train.py} and compare to classical baselines.
+    \item Scenario validation: run \texttt{scripts/scenario\_benchmarks.py} for stress tests.
+    \item Serve the app: launch \texttt{python -m web.app} and inspect Home/Run/Case Study pages.
+    \item Regressions: run pytest before deployment.
+\end{enumerate}
+
+\section{Notes}
+\begin{itemize}[leftmargin=1.2em]
+    \item Some components (for example PPO checkpoint loading) can be optional at runtime if dependencies/models are unavailable.
+    \item Precompute and cache layers are used to make the web experience responsive and deterministic.
+    \item The codebase is organized so that \texttt{src/} remains reusable from both CLI scripts and the Flask app.
+\end{itemize}
+
+\end{document}
