@@ -91,6 +91,7 @@ logger.info("Case study ready (available=%s)", CASE_STUDY.available)
 # Exec Lab cache (master process only — avoids PPO.load / torch in gunicorn workers)
 # ---------------------------------------------------------------------------
 _LAB_CACHE_DF: dict[str, Any] = {}
+_LAB_CACHE_REGIMES: dict[tuple[str, int], np.ndarray] = {}
 _LAB_CACHE_PPO_AGENT: object | None = None
 _LAB_CACHE_PPO_RESOLVED: str | None = None
 
@@ -132,6 +133,27 @@ def _lab_df_for_split(split: str):
     if base is None:
         return None
     return base.copy()
+
+
+def _lab_regimes(df, split: str, n_reg: int) -> np.ndarray:
+    """Regime labels for a split, fitted once per (split, n_reg).
+
+    The panel for a split is fixed, so refitting the HMM on every request
+    only burns CPU. The length guard drops the cache if the panel changes.
+    """
+    key = (split, n_reg)
+    cached = _LAB_CACHE_REGIMES.get(key)
+    if cached is not None and len(cached) == len(df):
+        return cached
+
+    from src.regime_detector import RegimeDetector
+
+    det = RegimeDetector(n_components=n_reg, fallback_threshold=0.24)
+    det.fit(df)
+    labels = det.predict(df)
+    if len(labels) == len(df):
+        _LAB_CACHE_REGIMES[key] = labels
+    return labels
 
 
 def _lab_agent_for_policy(policy_path: str, seed: int):
@@ -314,6 +336,11 @@ def user_manual():
     return render_template("user_manual.html", active_page="user_manual")
 
 
+@app.errorhandler(404)
+def not_found(_err):
+    return render_template("404.html", active_page=None), 404
+
+
 # ---------------------------------------------------------------------------
 # API: Regime Detection
 # ---------------------------------------------------------------------------
@@ -321,7 +348,7 @@ def user_manual():
 def api_regimes():
     try:
         from src.data_pipeline import load_split
-        from src.regime_detector import RegimeDetector, regime_sanity_summary
+        from src.regime_detector import regime_sanity_summary
         from src.utils import regime_display_name
 
         split = request.form.get("split", "test")
@@ -330,9 +357,7 @@ def api_regimes():
         df = _lab_df_for_split(split)
         if df is None:
             df = load_split(split, ticker="SPY", use_bbo=True, use_news=True)
-        det = RegimeDetector(n_components=n_reg, fallback_threshold=0.24)
-        det.fit(df)
-        regimes = det.predict(df)
+        regimes = _lab_regimes(df, split, n_reg)
 
         dates = [d.strftime("%Y-%m-%d") for d in df.index]
         chart_data = {
@@ -369,7 +394,6 @@ def api_regimes():
 def api_episode():
     try:
         from src.data_pipeline import load_split
-        from src.regime_detector import RegimeDetector
         from src.trading_env import OptimalExecutionEnv
         from src.ui_rollout import rollout_episode
 
@@ -384,9 +408,7 @@ def api_episode():
             df = load_split(split, ticker="SPY", use_bbo=True, use_news=True)
         row_start = _resolve_start_date(df, start_date, T)
 
-        det = RegimeDetector(n_components=n_reg, fallback_threshold=0.24)
-        det.fit(df)
-        df["regime"] = det.predict(df)
+        df["regime"] = _lab_regimes(df, split, n_reg)
 
         env = OptimalExecutionEnv(df, T=T, resample=False, **_physical_env_kwargs())
         agent = _lab_agent_for_policy(policy_path, 42)
@@ -424,7 +446,6 @@ def api_episode():
 def api_benchmarks():
     try:
         from src.data_pipeline import load_split
-        from src.regime_detector import RegimeDetector
         from src.trading_env import OptimalExecutionEnv
         from src.benchmarks import compare_all
         from src.rl_agent import evaluate_agent, format_rl_eval_report
@@ -440,9 +461,7 @@ def api_benchmarks():
             df = load_split(split, ticker="SPY", use_bbo=True, use_news=True)
         row_start = _resolve_start_date(df, start_date, T)
 
-        det = RegimeDetector(n_components=n_reg, fallback_threshold=0.24)
-        det.fit(df)
-        df["regime"] = det.predict(df)
+        df["regime"] = _lab_regimes(df, split, n_reg)
 
         env = OptimalExecutionEnv(df, T=T, resample=False, **_physical_env_kwargs())
         agent = _lab_agent_for_policy(policy_path, 42)
@@ -490,7 +509,7 @@ def api_benchmarks():
 def api_run_all():
     try:
         from src.data_pipeline import load_split
-        from src.regime_detector import RegimeDetector, regime_sanity_summary
+        from src.regime_detector import regime_sanity_summary
         from src.trading_env import OptimalExecutionEnv
         from src.ui_rollout import rollout_episode
         from src.benchmarks import compare_all
@@ -509,9 +528,7 @@ def api_run_all():
             df = load_split(split, ticker="SPY", use_bbo=True, use_news=True)
         row_start = _resolve_start_date(df, start_date, T)
 
-        det = RegimeDetector(n_components=n_reg, fallback_threshold=0.24)
-        det.fit(df)
-        regimes = det.predict(df)
+        regimes = _lab_regimes(df, split, n_reg)
         df["regime"] = regimes
 
         # Regime chart data

@@ -46,20 +46,35 @@
           </div>
 
           <div>
+            {% if static_mode %}
+            <label class="config-label" for="horizon">Horizon T</label>
+            <select id="horizon" name="horizon" class="config-select">
+              {% for h in static_horizons %}
+              <option value="{{ h }}" {{ 'selected' if h == 10 }}>{{ h }} days</option>
+              {% endfor %}
+            </select>
+            {% else %}
             <label class="config-label" for="horizon">Horizon T
               <span id="horizon-val" class="text-accent-600 font-bold ml-1">10</span>
             </label>
             <input type="range" id="horizon" name="horizon" min="3" max="30" value="10" class="w-full accent-amber-500"
                    oninput="document.getElementById('horizon-val').textContent=this.value" />
+            {% endif %}
           </div>
 
           <div>
             <label class="config-label" for="policy">Policy</label>
             <select id="policy" name="policy" class="config-select">
+              {% if static_mode %}
+              {% for p in static_policies %}
+              <option value="{{ p.value }}">{{ p.label }}</option>
+              {% endfor %}
+              {% else %}
               {% for m in models %}
               <option value="{{ m.path }}">{{ m.name }}</option>
               {% endfor %}
               <option value="random">Random Agent</option>
+              {% endif %}
             </select>
           </div>
 
@@ -82,6 +97,14 @@
         </div>
 
         <div class="mt-6 space-y-3">
+          {% if static_mode %}
+          <button id="run-all-btn" class="btn-primary w-full flex items-center justify-center gap-2">
+            <span class="btn-label">Run Full Pipeline</span>
+          </button>
+          <button id="regimes-btn" class="btn-secondary w-full flex items-center justify-center gap-1 text-xs">
+            <span class="btn-label">Regimes</span>
+          </button>
+          {% else %}
           <button id="run-all-btn" class="btn-primary w-full flex items-center justify-center gap-2"
                   hx-post="/api/run-all"
                   hx-include="#split, #n_reg, #horizon, #policy, #start_date"
@@ -108,6 +131,7 @@
               <span id="episode-spinner" class="htmx-indicator"><span class="spinner" style="border-color:rgba(0,0,0,0.15);border-top-color:#334e68;width:14px;height:14px;"></span></span>
             </button>
           </div>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -196,6 +220,10 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+{% if static_mode %}
+<script type="application/json" id="lab-config">{{ lab_config | safe }}</script>
+<script src="{{ url_for('static', filename='js/lab.js') }}"></script>
+{% else %}
 <script src="{{ url_for('static', filename='js/run.js') }}"></script>
 <script>
   (function () {
@@ -217,4 +245,5 @@
     });
   })();
 </script>
+{% endif %}
 {% endblock %}

@@ -9,7 +9,9 @@ from pathlib import Path
 
 from .utils import project_root
 
-CACHE_DIR = project_root() / "data" / "cached_llm"
+# CFA_LLM_CACHE_DIR redirects cache writes (used by the static export so a
+# build does not add files to the committed cache).
+CACHE_DIR = Path(os.environ.get("CFA_LLM_CACHE_DIR") or project_root() / "data" / "cached_llm")
 MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 
 
