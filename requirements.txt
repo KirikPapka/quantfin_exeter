@@ -1,5 +1,5 @@
-# Production / Render — slim set (no Jupyter, pytest, d3rlpy, tensorboard)
-# PyTorch: install CPU wheel separately (see build.sh / DEPLOY.md) to avoid CUDA libs on Render.
+# Production / CI — slim set (no Jupyter, pytest, d3rlpy, tensorboard)
+# PyTorch: install CPU wheel separately (see build.sh / DEPLOY.md) to avoid CUDA libs.
 yfinance==0.2.54
 pandas==2.2.2
 numpy==1.26.4

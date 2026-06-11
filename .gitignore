@@ -43,4 +43,7 @@ data/raw/*
 logs/
 models/ckpt/
 
-# Note: models/*.zip and deploy_data/features/*.parquet are NOT ignored — commit them for Render.
+# --- Wrangler local state ---
+.wrangler/
+
+# Note: models/*.zip and deploy_data/features/*.parquet are NOT ignored — the deploy build needs them.

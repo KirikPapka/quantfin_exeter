@@ -1,0 +1,11 @@
+name = "quantfin-exeter"
+compatibility_date = "2026-06-01"
+
+# Static site built by `python -m web.export` (see DEPLOY.md).
+[assets]
+directory = "./dist"
+not_found_handling = "404-page"
+
+routes = [
+  { pattern = "exeter.quantfin.dev", custom_domain = true }
+]

@@ -30,7 +30,7 @@ QuantFin Exeter is an optimal execution research and demo stack. It combines:
 \texttt{README.md} & Main onboarding doc: setup, project overview, and run instructions. \\
 \texttt{requirements.txt}, \texttt{environment.yml} & Python dependency definitions (pip and conda styles). \\
 \texttt{pytest.ini} & Test discovery and pytest configuration. \\
-\texttt{build.sh}, \texttt{Procfile}, \texttt{runtime.txt}, \texttt{DEPLOY.md} & Deployment/build metadata for local and hosted execution. \\
+\texttt{build.sh}, \texttt{wrangler.toml}, \texttt{DEPLOY.md} & Deployment/build metadata for local and hosted execution. \\
 \texttt{data/} & Main data workspace (raw, processed, and LLM cache artifacts). \\
 \texttt{deploy\_data/} & Deployment-time feature assets consumed by hosted app workflows. \\
 \texttt{models/} & Trained model artifacts and evaluation metadata (for example fixed eval starts). \\
@@ -97,6 +97,7 @@ QuantFin Exeter is an optimal execution research and demo stack. It combines:
 \hline
 \texttt{web/app.py} & Flask entrypoint with routes, startup cache/precompute hooks, and execution-lab request handling. \\
 \texttt{web/precompute.py} & Case study precomputation and data packaging for templates/charts. \\
+\texttt{web/export.py} & Static site export: renders pages and precomputes lab fragments into \texttt{dist/} for the Cloudflare deployment. \\
 \texttt{web/templates/} & Jinja templates: page shells, views, and partial fragments rendered by Flask routes. \\
 \texttt{web/static/css/} & App styling (tokens, responsive layout, component-level visual system). \\
 \texttt{web/static/js/} & Frontend behavior (chart rendering, run-page interactions, UX helpers). \\
