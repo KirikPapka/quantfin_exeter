@@ -207,7 +207,7 @@ Writes `data/processed/news_daily_SPY.parquet`. The RL observation includes z-sc
 
 ### 4.5 LLM governance (Anthropic Claude)
 
-**Cost to reproduce: < $20 USD** (well within the competition threshold).
+**Cost to reproduce: < 20 USD** (well within the competition threshold).
 
 - Cached responses are committed in `data/cached_llm/*.json` — judges can reproduce all governance text **without any API key or cost**.
 - For live calls: add `ANTHROPIC_API_KEY=your_key` to `.env`. Model: `claude-sonnet-4-20250514`.
