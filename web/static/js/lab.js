@@ -2,8 +2,8 @@
  * Execution Lab driver for the static (precomputed) deployment.
  *
  * Results are precomputed at build time by web/export.py into HTML fragments:
- *   /lab/run/{policy}-r{n_reg}-t{T}-{date}.html
- *   /lab/regimes/{split}-r{n_reg}.html
+ *   {basePath}/lab/run/{policy}-r{n_reg}-t{T}-{date}.html
+ *   {basePath}/lab/regimes/{split}-r{n_reg}.html
  * This file maps the configuration panel onto those URLs. The URL scheme
  * must stay in sync with web/export.py.
  */
@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const configEl = document.getElementById('lab-config');
   if (!configEl) return;
   const config = JSON.parse(configEl.textContent);
+  const basePath = config.basePath || '';
 
   const splitEl = document.getElementById('split');
   const nRegEl = document.getElementById('n_reg');
@@ -119,7 +120,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const T = horizonEl.value;
     const date = snapDate(dateEl.value, T);
     dateEl.value = date;
-    const url = '/lab/run/' + policyEl.value + '-r' + nRegEl.value + '-t' + T + '-' + date + '.html';
+    const url = basePath + '/lab/run/' + policyEl.value + '-r' + nRegEl.value + '-t' + T + '-' + date + '.html';
     showOverlay(true);
     try {
       await loadFragment(url, container);
@@ -130,7 +131,7 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   regimesBtn.addEventListener('click', function () {
-    const url = '/lab/regimes/' + splitEl.value + '-r' + nRegEl.value + '.html';
+    const url = basePath + '/lab/regimes/' + splitEl.value + '-r' + nRegEl.value + '.html';
     loadFragment(url, regimeTarget());
   });
 

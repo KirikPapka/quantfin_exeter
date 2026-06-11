@@ -7,7 +7,7 @@
 
 > Institutional **optimal trade execution** using **regime-aware reinforcement learning** (PPO), **classical benchmarks** (TWAP / VWAP / Almgren–Chriss / Immediate), **NASDAQ ITCH order-book imbalance**, and an **LLM governance** layer (Anthropic Claude, cached for reproducibility).
 
-**Live demo:** [https://exeter.quantfin.dev](https://exeter.quantfin.dev) · locally: `python -m web.app` → [http://localhost:5001](http://localhost:5001)
+**Live demo:** [https://quantfin.dev/execution](https://quantfin.dev/execution) · locally: `python -m web.app` → [http://localhost:5001](http://localhost:5001)
 
 This repository contains the full research-to-demo stack: feature engineering, regime detection, an execution RL environment, benchmark strategies, evaluation scripts, and a web interface for judges.
 
@@ -270,7 +270,7 @@ python -m web.app
 # Starts on http://localhost:5001
 ```
 
-A static export of the same app is hosted at [exeter.quantfin.dev](https://exeter.quantfin.dev) (Cloudflare, deployed on every push to `main`, see [DEPLOY.md](DEPLOY.md)). The hosted Execution Lab serves precomputed results for horizons 5/10/20 on the test split; run locally for arbitrary configurations.
+A static export of the same app is hosted at [quantfin.dev/execution](https://quantfin.dev/execution) (Cloudflare, deployed on every push to `main`, see [DEPLOY.md](DEPLOY.md)). The hosted Execution Lab serves precomputed results for horizons 5/10/20 on the test split; run locally for arbitrary configurations.
 
 **Pages:**
 

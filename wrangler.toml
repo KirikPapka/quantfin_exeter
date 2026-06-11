@@ -1,9 +1,13 @@
 name = "quantfin-exeter"
+main = "worker.js"
 compatibility_date = "2026-06-01"
 
-# Static site built by `python -m web.export` (see DEPLOY.md).
+# Static site built by `python -m web.export` (see DEPLOY.md). Served at
+# quantfin.dev/execution through a service binding on the landing worker;
+# the old exeter.quantfin.dev host 301s there.
 [assets]
 directory = "./dist"
+binding = "ASSETS"
 not_found_handling = "404-page"
 
 routes = [

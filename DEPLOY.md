@@ -1,6 +1,6 @@
 # Deploy (Cloudflare)
 
-The hosted demo at **https://exeter.quantfin.dev** is a static export of the Flask app, served as Cloudflare Workers static assets. `web/export.py` renders every page and precomputes all Execution Lab configurations into plain HTML fragments, so the deployed site needs no Python runtime, never sleeps, and costs nothing to host.
+The hosted demo at **https://quantfin.dev/execution** is a static export of the Flask app, served as Cloudflare Workers static assets. `web/export.py` renders every page and precomputes all Execution Lab configurations into plain HTML fragments, so the deployed site needs no Python runtime, never sleeps, and costs nothing to host.
 
 ## How it deploys
 
@@ -17,7 +17,7 @@ Every push to `main` runs [`.github/workflows/deploy.yml`](.github/workflows/dep
 2. Add two repository secrets (**Settings → Secrets and variables → Actions**):
    - `CLOUDFLARE_API_TOKEN`
    - `CLOUDFLARE_ACCOUNT_ID` (dashboard → Workers & Pages → right sidebar)
-3. Push to `main`. The first deploy creates the `quantfin-exeter` worker and attaches the custom domain `exeter.quantfin.dev` (the `quantfin.dev` zone must be on the same Cloudflare account).
+3. Push to `main`. The deploy updates the `quantfin-exeter` worker. The landing worker (`quantfin`, in the quantfin.dev repo) mounts it at `quantfin.dev/execution` through a service binding; `exeter.quantfin.dev` stays attached only to 301 old links there.
 
 ## Deploy from a laptop
 

@@ -2,7 +2,9 @@
 
 Renders every page and precomputes Execution Lab results into plain HTML
 under ``dist/``, so the site is served as static assets with no Python
-runtime. The fragment URL scheme must stay in sync with
+runtime. Everything lives under ``BASE_PATH`` because the site is mounted
+at quantfin.dev/execution through a service binding on the landing
+worker. The fragment URL scheme must stay in sync with
 ``web/static/js/lab.js``.
 
 Run from the repo root:
@@ -15,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -29,6 +32,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger(__name__)
 
 DIST = ROOT / "dist"
+
+# Mount point of the site on quantfin.dev. Root-relative URLs in rendered
+# HTML are rewritten to live under this prefix.
+BASE_PATH = "/execution"
 
 # Precomputed grid. Every valid start date in the test split is exported
 # for each horizon, regime count, and policy.
@@ -65,10 +72,15 @@ def _policies() -> dict[str, dict[str, str]]:
     return out
 
 
+def _rewrite_urls(html: str) -> str:
+    """Prefix root-relative href/src attributes with BASE_PATH."""
+    return re.sub(r'(href|src)="/(?!/)', rf'\1="{BASE_PATH}/', html)
+
+
 def _write(rel_path: str, content: str) -> None:
-    path = DIST / rel_path
+    path = DIST / BASE_PATH.strip("/") / rel_path
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    path.write_text(_rewrite_urls(content), encoding="utf-8")
 
 
 def _export_pages(client) -> None:
@@ -86,6 +98,7 @@ def _export_run_page(app, dates: list[str], policies: dict) -> None:
     from web.app import _split_date_context
 
     lab_config = {
+        "basePath": BASE_PATH,
         "dates": dates,
         "horizons": HORIZONS,
         # Last valid start index per horizon: an episode needs T bars plus
@@ -112,7 +125,8 @@ def _export_404(app) -> None:
     from flask import render_template
 
     with app.test_request_context("/404"):
-        _write("404.html", render_template("404.html", active_page=None))
+        html = _rewrite_urls(render_template("404.html", active_page=None))
+    (DIST / "404.html").write_text(html, encoding="utf-8")
     logger.info("Exported 404.html")
 
 
@@ -182,7 +196,7 @@ def main() -> None:
     if DIST.exists():
         shutil.rmtree(DIST)
     DIST.mkdir(parents=True)
-    shutil.copytree(ROOT / "web" / "static", DIST / "static")
+    shutil.copytree(ROOT / "web" / "static", DIST / BASE_PATH.strip("/") / "static")
 
     client = app.test_client()
     _export_pages(client)
