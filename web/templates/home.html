@@ -28,17 +28,29 @@
       </div>
     </div>
   </div>
-  <!-- Decorative chart line -->
-  <div class="absolute bottom-0 left-0 right-0 h-32 pointer-events-none overflow-hidden">
+  <!-- Decorative tape: candlesticks with a price line -->
+  <div class="absolute bottom-0 left-0 right-0 h-32 pointer-events-none overflow-hidden" aria-hidden="true">
     <svg class="w-full h-full" viewBox="0 0 1440 128" preserveAspectRatio="none" fill="none">
-      <path d="M0 128 L0 90 Q120 50 240 65 T480 45 T720 70 T960 35 T1200 55 T1440 30 L1440 128Z" fill="white" opacity="0.04"/>
-      <path d="M0 128 L0 100 Q180 70 360 80 T720 60 T1080 75 T1440 50 L1440 128Z" fill="white"/>
+      <g opacity="0.35">
+        <g stroke="#4ade80" stroke-width="2"><path d="M60 38v74M180 52v66M420 30v82M540 60v58M780 44v70M1020 26v86M1140 56v62M1380 36v76"/></g>
+        <g fill="#4ade80"><rect x="52" y="58" width="16" height="34" rx="2"/><rect x="172" y="68" width="16" height="30" rx="2"/><rect x="412" y="48" width="16" height="42" rx="2"/><rect x="532" y="74" width="16" height="26" rx="2"/><rect x="772" y="62" width="16" height="32" rx="2"/><rect x="1012" y="42" width="16" height="46" rx="2"/><rect x="1132" y="72" width="16" height="28" rx="2"/><rect x="1372" y="54" width="16" height="36" rx="2"/></g>
+        <g stroke="#f87171" stroke-width="2"><path d="M120 48v68M300 40v76M660 36v78M900 54v64M1260 46v70"/></g>
+        <g fill="#f87171"><rect x="112" y="62" width="16" height="32" rx="2"/><rect x="292" y="56" width="16" height="38" rx="2"/><rect x="652" y="52" width="16" height="40" rx="2"/><rect x="892" y="70" width="16" height="28" rx="2"/><rect x="1252" y="60" width="16" height="34" rx="2"/></g>
+      </g>
+      <path d="M0 96 Q120 76 240 84 T480 64 T720 80 T960 52 T1200 66 T1440 44" stroke="#5fd0ff" stroke-width="2" opacity="0.6"/>
+      <path d="M0 96 Q120 76 240 84 T480 64 T720 80 T960 52 T1200 66 T1440 44 L1440 128 L0 128 Z" fill="url(#hero-fade)"/>
+      <defs>
+        <linearGradient id="hero-fade" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stop-color="#5fd0ff" stop-opacity="0.12"/>
+          <stop offset="1" stop-color="#5fd0ff" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
     </svg>
   </div>
 </section>
 
 <!-- ====== THE PROBLEM ====== -->
-<section class="py-16 sm:py-20 lg:py-28 bg-white fade-section">
+<section class="py-16 sm:py-20 lg:py-28 fade-section">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="text-center mb-16">
       <p class="text-accent-600 font-semibold text-sm uppercase tracking-wider mb-3">The Challenge</p>
@@ -135,7 +147,7 @@
 </section>
 
 <!-- ====== HOW IT WORKS — PIPELINE ====== -->
-<section class="py-16 sm:py-20 lg:py-28 bg-white fade-section">
+<section class="py-16 sm:py-20 lg:py-28 fade-section">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="text-center mb-16">
       <p class="text-accent-600 font-semibold text-sm uppercase tracking-wider mb-3">Architecture</p>
@@ -225,7 +237,7 @@
 </section>
 
 <!-- ====== CTA ====== -->
-<section class="py-16 sm:py-20 lg:py-24 bg-white fade-section">
+<section class="py-16 sm:py-20 lg:py-24 fade-section">
   <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
     <h2 class="text-3xl md:text-4xl font-bold text-navy-900 mb-6">See It in Action</h2>
     <p class="text-navy-500 text-lg mb-10 max-w-2xl mx-auto leading-relaxed">
@@ -236,7 +248,7 @@
         Case Study
         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
       </a>
-      <a href="/run" class="inline-flex items-center justify-center gap-2 w-full sm:w-auto bg-navy-900 hover:bg-navy-800 text-white font-semibold px-8 py-4 rounded-xl transition-all hover:shadow-lg text-lg">
+      <a href="/run" class="inline-flex items-center justify-center gap-2 w-full sm:w-auto bg-white/10 hover:bg-white/15 text-white font-semibold px-8 py-4 rounded-xl border border-white/20 transition-all text-lg">
         Execution Lab
         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" /></svg>
       </a>

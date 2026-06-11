@@ -4,21 +4,31 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}QuantFin Exeter{% endblock %} — Optimal Execution</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}" />
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/quantfin-logo.jpg') }}" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
+    // Palette mirrors quantfin.dev (styles.css :root) so both sites read as one family.
+    // The navy scale runs dark surfaces (50-200) to light ink (600-900) for this dark theme.
     tailwind.config = {
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Sora', 'system-ui', 'sans-serif'],
-            mono: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            display: ['Space Grotesk', 'Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
           },
           colors: {
-            navy: { 50:'#f0f4f8', 100:'#d9e2ec', 200:'#bcccdc', 300:'#9fb3c8', 400:'#829ab1', 500:'#627d98', 600:'#486581', 700:'#334e68', 800:'#243b53', 900:'#102a43', 950:'#0a1929' },
-            accent: { 50:'#fffbeb', 100:'#fef3c7', 200:'#fde68a', 300:'#fcd34d', 400:'#fbbf24', 500:'#f59e0b', 600:'#d97706', 700:'#b45309' },
+            navy: { 50:'#0d142b', 100:'#1b2547', 200:'#2c3a63', 300:'#aab3c5', 400:'#7e88a0', 500:'#959fb6', 600:'#c3cbdd', 700:'#d7dde9', 800:'#e2e7f0', 900:'#eef1f8', 950:'#060818' },
+            accent: { 50:'#1f1305', 100:'#2b1a08', 200:'#4a2b0c', 300:'#ffc18a', 400:'#ff9a4d', 500:'#ff7a1a', 600:'#ff8a33', 700:'#ffb070' },
+            emerald: { 50:'#06231a', 100:'#0d2f24', 600:'#34d399', 700:'#6ee7b7' },
+            blue: { 50:'#0a1a33', 100:'#10234a', 500:'#60a5fa', 600:'#7cb4fc', 700:'#a3c9fd' },
+            purple: { 50:'#1b0f38', 100:'#231447', 600:'#c084fc', 700:'#d6b6fe' },
+            amber: { 50:'#241604', 100:'#2b1a08', 500:'#f59e0b', 600:'#fbbf24', 700:'#fcd34d' },
+            red: { 50:'#2a0f12', 200:'#7f2a33', 700:'#fda4af' },
           },
         },
       },
@@ -29,25 +39,22 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
   {% block head_extra %}{% endblock %}
 </head>
-<body class="site-shell bg-white text-navy-900 font-sans antialiased">
+<body class="site-shell text-navy-900 font-sans antialiased">
 
   <!-- Navigation -->
   <nav id="main-nav" class="nav-shell fixed top-0 inset-x-0 z-50 transition-all duration-300">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex items-center justify-between h-16">
         <a href="/" class="flex items-center gap-3 group">
-          <div class="w-9 h-9 rounded-xl bg-accent-500 flex items-center justify-center shadow-md group-hover:shadow-accent-500/40 transition-shadow">
-            <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-            </svg>
-          </div>
-          <span class="font-bold text-lg nav-brand-text">QuantFin Exeter</span>
+          <img src="{{ url_for('static', filename='img/quantfin-logo.jpg') }}" alt="" class="w-9 h-9 rounded-xl object-cover shadow-md group-hover:shadow-accent-500/40 transition-shadow" />
+          <span class="font-display font-bold text-lg nav-brand-text">QuantFin <span class="text-accent-500">Exeter</span></span>
         </a>
         <div class="hidden md:flex items-center gap-1.5">
           <a href="/" class="nav-link px-4 py-2 rounded-lg text-sm font-medium transition-colors {{ 'nav-active' if active_page == 'home' }}">Home</a>
           <a href="/case-study" class="nav-link px-4 py-2 rounded-lg text-sm font-medium transition-colors {{ 'nav-active' if active_page == 'case_study' }}">Case Study</a>
           <a href="/run" class="nav-link px-4 py-2 rounded-lg text-sm font-medium transition-colors {{ 'nav-active' if active_page == 'run' }}">Run</a>
           <a href="/user-manual" class="nav-link px-4 py-2 rounded-lg text-sm font-medium transition-colors {{ 'nav-active' if active_page == 'user_manual' }}">User Manual</a>
+          <a href="https://quantfin.dev" target="_blank" rel="noopener noreferrer" class="nav-link px-4 py-2 rounded-lg text-sm font-medium transition-colors">Society</a>
           <a href="https://github.com/KirikPapka/quantfin_exeter" target="_blank" rel="noopener noreferrer" class="nav-link p-2 rounded-lg ml-1 text-navy-200 hover:text-white hover:bg-white/10 transition-colors" title="GitHub repository" aria-label="GitHub">
             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
           </a>
@@ -63,6 +70,7 @@
         <a href="/case-study" class="mobile-nav-link block px-4 py-2.5 rounded-lg text-sm text-white/85 hover:text-white hover:bg-white/10">Case Study</a>
         <a href="/run" class="mobile-nav-link block px-4 py-2.5 rounded-lg text-sm text-white/85 hover:text-white hover:bg-white/10">Run</a>
         <a href="/user-manual" class="mobile-nav-link block px-4 py-2.5 rounded-lg text-sm text-white/85 hover:text-white hover:bg-white/10">User Manual</a>
+        <a href="https://quantfin.dev" target="_blank" rel="noopener noreferrer" class="mobile-nav-link block px-4 py-2.5 rounded-lg text-sm text-white/85 hover:text-white hover:bg-white/10">QuantFin Society</a>
         <a href="https://github.com/KirikPapka/quantfin_exeter" target="_blank" rel="noopener noreferrer" class="mobile-nav-link flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm text-white/85 hover:text-white hover:bg-white/10">
           <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
           GitHub
@@ -82,12 +90,8 @@
       <div class="grid md:grid-cols-3 gap-12">
         <div>
           <div class="flex items-center gap-3 mb-4">
-            <div class="w-8 h-8 rounded-lg bg-accent-500 flex items-center justify-center">
-              <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-              </svg>
-            </div>
-            <span class="font-bold text-white text-lg">QuantFin Exeter</span>
+            <img src="{{ url_for('static', filename='img/quantfin-logo.jpg') }}" alt="" class="w-8 h-8 rounded-lg object-cover" />
+            <span class="font-display font-bold text-white text-lg">QuantFin <span class="text-accent-500">Exeter</span></span>
           </div>
           <p class="text-sm leading-relaxed">AI-powered optimal trade execution using regime-aware reinforcement learning with LLM governance.</p>
         </div>
@@ -102,13 +106,14 @@
           </ul>
         </div>
         <div>
-          <h4 class="font-semibold text-white mb-4 text-sm uppercase tracking-wider">Competition</h4>
-          <p class="text-sm leading-relaxed">CFA Institute Research Challenge<br />AI in Investment — 2026</p>
+          <h4 class="font-semibold text-white mb-4 text-sm uppercase tracking-wider">QuantFin Society</h4>
+          <p class="text-sm leading-relaxed">CFA Institute AI Investment Challenge<br />2nd place, national final — 2026</p>
           <p class="text-sm mt-3">Team 18 &middot; University of Exeter</p>
+          <a href="https://quantfin.dev" target="_blank" rel="noopener noreferrer" class="inline-block text-sm mt-3 text-accent-400 hover:text-accent-300 transition-colors">quantfin.dev &rarr;</a>
         </div>
       </div>
-      <div class="border-t border-navy-800 mt-12 pt-8 text-center text-sm text-navy-500">
-        &copy; 2026 QuantFin Exeter &middot; Group 18 &middot; Built with Python, Flask &amp; Plotly
+      <div class="border-t border-white/10 mt-12 pt-8 text-center text-sm text-navy-500">
+        &copy; 2026 QuantFin Society &middot; University of Exeter &middot; Built with Python, Flask &amp; Plotly
       </div>
     </div>
   </footer>

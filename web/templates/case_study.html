@@ -21,8 +21,8 @@
 <!-- Key results highlight -->
 <section class="bg-navy-50 border-b border-navy-100">
   <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
-    <div class="rounded-2xl border border-navy-200 bg-white shadow-sm overflow-hidden">
-      <div class="bg-navy-900 px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+    <div class="rounded-2xl border border-navy-100 bg-navy-50 overflow-hidden">
+      <div class="bg-navy-100 px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <h2 class="text-lg font-bold text-white">Benchmark results (mean IS)</h2>
         <p class="text-navy-300 text-sm">Higher = better average sell price vs arrival &mdash; we are <strong class="text-accent-400">closing</strong> a position</p>
       </div>
@@ -216,8 +216,8 @@
     {% if case.benchmarks is not none %}
     <p class="text-xs text-navy-400 mb-3">Each cell is colour-coded from <span class="text-red-600 font-medium">red</span> (worse) to <span class="text-emerald-600 font-medium">green</span> (better): higher mean IS is better for a sell, and higher completion is better. Values are averaged over many execution windows.</p>
     <div class="grid md:grid-cols-2 gap-4 mb-2">
-      <div id="heatmap-is" class="chart-shell chart-short rounded-xl overflow-hidden border border-navy-100 bg-white"></div>
-      <div id="heatmap-cr" class="chart-shell chart-short rounded-xl overflow-hidden border border-navy-100 bg-white"></div>
+      <div id="heatmap-is" class="chart-shell chart-short rounded-xl overflow-hidden border border-navy-100"></div>
+      <div id="heatmap-cr" class="chart-shell chart-short rounded-xl overflow-hidden border border-navy-100"></div>
     </div>
     <details class="mt-4">
       <summary class="cursor-pointer text-sm font-semibold text-navy-500 hover:text-navy-800 transition-colors">Show full benchmark table</summary>
@@ -275,7 +275,7 @@
   </div>
 
   <!-- Takeaway -->
-  <div class="bg-navy-950 rounded-2xl p-6 sm:p-8 md:p-10 text-center fade-section">
+  <div class="bg-navy-950 border border-white/10 rounded-2xl p-6 sm:p-8 md:p-10 text-center fade-section">
     <h3 class="text-2xl font-bold text-white mb-4">Key Takeaway</h3>
     <p class="text-navy-300 leading-relaxed max-w-2xl mx-auto">
       Our regime-aware RL agent adapts its execution pace to market conditions, achieving competitive implementation shortfall compared to classical strategies while providing full transparency through LLM-powered governance. Every decision is explainable, every trade is accountable.

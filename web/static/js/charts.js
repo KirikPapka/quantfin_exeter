@@ -4,30 +4,30 @@
  */
 
 const QF_COLORS = {
-  navy:     '#0f172a',
-  navyMid:  '#334e68',
-  navyLight:'#829ab1',
-  accent:   '#f59e0b',
-  accentDk: '#d97706',
-  calm:     'rgba(52, 211, 153, 0.25)',
-  calmBord: 'rgba(52, 211, 153, 0.5)',
-  vol:      'rgba(251, 191, 36, 0.25)',
-  volBord:  'rgba(251, 191, 36, 0.5)',
-  stressed: 'rgba(248, 113, 113, 0.25)',
-  stressBord:'rgba(248, 113, 113, 0.5)',
+  navy:     '#5fd0ff',
+  navyMid:  '#3282b8',
+  navyLight:'#7a8499',
+  accent:   '#ff7a1a',
+  accentDk: '#ff9a4d',
+  calm:     'rgba(74, 222, 128, 0.16)',
+  calmBord: 'rgba(74, 222, 128, 0.4)',
+  vol:      'rgba(251, 191, 36, 0.16)',
+  volBord:  'rgba(251, 191, 36, 0.4)',
+  stressed: 'rgba(248, 113, 113, 0.16)',
+  stressBord:'rgba(248, 113, 113, 0.4)',
   white:    '#ffffff',
-  bg:       '#f8fafc',
+  bg:       '#0a0f1f',
 };
 
 const QF_LAYOUT = {
-  font:      { family: 'Sora, system-ui, sans-serif', size: 12, color: '#334e68' },
+  font:      { family: 'Inter, system-ui, sans-serif', size: 12, color: '#aab3c5' },
   paper_bgcolor: 'rgba(0,0,0,0)',
-  plot_bgcolor:  '#ffffff',
+  plot_bgcolor:  '#0a0f1f',
   margin:    { l: 56, r: 24, t: 40, b: 44 },
-  xaxis:     { gridcolor: '#e2e8f0', linecolor: '#d9e2ec', zeroline: false },
-  yaxis:     { gridcolor: '#e2e8f0', linecolor: '#d9e2ec', zeroline: false },
-  hoverlabel:{ bgcolor: '#0f172a', font: { color: '#fff', size: 12 } },
-  modebar:   { bgcolor: 'transparent', color: '#9fb3c8', activecolor: '#f59e0b' },
+  xaxis:     { gridcolor: 'rgba(255,255,255,0.08)', linecolor: 'rgba(255,255,255,0.14)', zeroline: false },
+  yaxis:     { gridcolor: 'rgba(255,255,255,0.08)', linecolor: 'rgba(255,255,255,0.14)', zeroline: false },
+  hoverlabel:{ bgcolor: '#0e1530', font: { color: '#e9edf5', size: 12 } },
+  modebar:   { bgcolor: 'transparent', color: '#7a8499', activecolor: '#ff7a1a' },
 };
 
 const REGIME_FILLS = [QF_COLORS.calm, QF_COLORS.vol, QF_COLORS.stressed];
@@ -82,7 +82,7 @@ function renderRegimeChart(containerId, data) {
   };
   const layout = {
     ...QF_LAYOUT,
-    title: { text: 'SPY Price with Market Regimes', font: { size: compact ? 12 : 14, color: '#102a43' }, x: 0.02 },
+    title: { text: 'SPY Price with Market Regimes', font: { size: compact ? 12 : 14, color: '#e9edf5' }, x: 0.02 },
     margin: compact ? { l: 46, r: 10, t: 34, b: 36 } : QF_LAYOUT.margin,
     shapes: _regimeShapes(data.dates, data.regimes),
     xaxis: { ...QF_LAYOUT.xaxis, type: 'date', tickfont: { size: compact ? 10 : 12 } },
@@ -162,8 +162,8 @@ function renderEpisodeChart(containerId, data) {
           yanchor: 'bottom',
           orientation: 'h',
           font: { size: 10 },
-          bgcolor: 'rgba(255,255,255,0.9)',
-          bordercolor: '#e2e8f0',
+          bgcolor: 'rgba(10,15,31,0.9)',
+          bordercolor: 'rgba(255,255,255,0.14)',
           borderwidth: 1,
         }
       : {
@@ -173,8 +173,8 @@ function renderEpisodeChart(containerId, data) {
           yanchor: 'bottom',
           orientation: 'h',
           font: { size: 11 },
-          bgcolor: 'rgba(255,255,255,0.95)',
-          bordercolor: '#e2e8f0',
+          bgcolor: 'rgba(10,15,31,0.95)',
+          bordercolor: 'rgba(255,255,255,0.14)',
           borderwidth: 1,
         },
     barmode: 'overlay',
@@ -203,7 +203,7 @@ function renderBenchmarkChart(containerId, data) {
       type: 'data',
       array: data.std_is,
       visible: true,
-      color: '#9fb3c8',
+      color: '#7a8499',
       thickness: 1.5,
     },
     type: 'bar',
@@ -212,7 +212,7 @@ function renderBenchmarkChart(containerId, data) {
   };
   const layout = {
     ...QF_LAYOUT,
-    title: { text: 'Mean Implementation Shortfall by Strategy', font: { size: compact ? 12 : 14, color: '#102a43' }, x: 0.02 },
+    title: { text: 'Mean Implementation Shortfall by Strategy', font: { size: compact ? 12 : 14, color: '#e9edf5' }, x: 0.02 },
     margin: compact ? { l: 44, r: 10, t: 36, b: 40 } : QF_LAYOUT.margin,
     xaxis: { ...QF_LAYOUT.xaxis, title: '', tickangle: compact ? -24 : 0, tickfont: { size: compact ? 10 : 12 } },
     yaxis: { ...QF_LAYOUT.yaxis, title: { text: 'IS (bps)', standoff: 8 }, tickfont: { size: compact ? 10 : 12 } },
@@ -263,7 +263,7 @@ function renderBenchmarkHeatmaps(isContainerId, crContainerId, data) {
   const isLayout = {
     ...QF_LAYOUT,
     margin: compact ? { l: 12, r: 52, t: 40, b: 48 } : { l: 20, r: 80, t: 50, b: 60 },
-    title: { text: 'Mean IS by Strategy', font: { size: compact ? 11 : 13, color: '#102a43' }, x: 0.02 },
+    title: { text: 'Mean IS by Strategy', font: { size: compact ? 11 : 13, color: '#e9edf5' }, x: 0.02 },
     xaxis: { ...QF_LAYOUT.xaxis, tickangle: compact ? -26 : -20, tickfont: { size: compact ? 10 : 12 } },
     yaxis: { ...QF_LAYOUT.yaxis, showticklabels: false },
     height: compact ? 150 : 180,
@@ -296,7 +296,7 @@ function renderBenchmarkHeatmaps(isContainerId, crContainerId, data) {
   const crLayout = {
     ...QF_LAYOUT,
     margin: compact ? { l: 12, r: 52, t: 40, b: 48 } : { l: 20, r: 80, t: 50, b: 60 },
-    title: { text: 'Completion Rate by Strategy', font: { size: compact ? 11 : 13, color: '#102a43' }, x: 0.02 },
+    title: { text: 'Completion Rate by Strategy', font: { size: compact ? 11 : 13, color: '#e9edf5' }, x: 0.02 },
     xaxis: { ...QF_LAYOUT.xaxis, tickangle: compact ? -26 : -20, tickfont: { size: compact ? 10 : 12 } },
     yaxis: { ...QF_LAYOUT.yaxis, showticklabels: false },
     height: compact ? 150 : 180,
