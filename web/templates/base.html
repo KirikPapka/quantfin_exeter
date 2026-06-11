@@ -24,6 +24,7 @@
           colors: {
             navy: { 50:'#0d142b', 100:'#1b2547', 200:'#2c3a63', 300:'#aab3c5', 400:'#7e88a0', 500:'#959fb6', 600:'#c3cbdd', 700:'#d7dde9', 800:'#e2e7f0', 900:'#eef1f8', 950:'#060818' },
             accent: { 50:'#1f1305', 100:'#2b1a08', 200:'#4a2b0c', 300:'#ffc18a', 400:'#ff9a4d', 500:'#ff7a1a', 600:'#ff8a33', 700:'#ffb070' },
+            brand: { 300:'#a8e2ff', 400:'#5fd0ff', 500:'#3282b8' },
             emerald: { 50:'#06231a', 100:'#0d2f24', 600:'#34d399', 700:'#6ee7b7' },
             blue: { 50:'#0a1a33', 100:'#10234a', 500:'#60a5fa', 600:'#7cb4fc', 700:'#a3c9fd' },
             purple: { 50:'#1b0f38', 100:'#231447', 600:'#c084fc', 700:'#d6b6fe' },
@@ -46,8 +47,8 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex items-center justify-between h-16">
         <a href="/" class="flex items-center gap-3 group">
-          <img src="{{ url_for('static', filename='img/quantfin-logo.jpg') }}" alt="" class="w-9 h-9 rounded-xl object-cover shadow-md group-hover:shadow-accent-500/40 transition-shadow" />
-          <span class="font-display font-bold text-lg nav-brand-text">QuantFin <span class="text-accent-500">Exeter</span></span>
+          <img src="{{ url_for('static', filename='img/quantfin-logo.jpg') }}" alt="" class="w-9 h-9 rounded-xl object-cover shadow-md group-hover:shadow-brand-400/40 transition-shadow" />
+          <span class="font-display font-bold text-lg nav-brand-text">QuantFin <span class="text-navy-400">Exeter</span></span>
         </a>
         <div class="hidden md:flex items-center gap-1.5">
           <a href="/" class="nav-link px-4 py-2 rounded-lg text-sm font-medium transition-colors {{ 'nav-active' if active_page == 'home' }}">Home</a>
@@ -91,25 +92,25 @@
         <div>
           <div class="flex items-center gap-3 mb-4">
             <img src="{{ url_for('static', filename='img/quantfin-logo.jpg') }}" alt="" class="w-8 h-8 rounded-lg object-cover" />
-            <span class="font-display font-bold text-white text-lg">QuantFin <span class="text-accent-500">Exeter</span></span>
+            <span class="font-display font-bold text-white text-lg">QuantFin <span class="text-navy-400">Exeter</span></span>
           </div>
           <p class="text-sm leading-relaxed">AI-powered optimal trade execution using regime-aware reinforcement learning with LLM governance.</p>
         </div>
         <div>
           <h4 class="font-semibold text-white mb-4 text-sm uppercase tracking-wider">Navigation</h4>
           <ul class="space-y-2 text-sm">
-            <li><a href="/" class="hover:text-accent-400 transition-colors">Home</a></li>
-            <li><a href="/case-study" class="hover:text-accent-400 transition-colors">Case Study</a></li>
-            <li><a href="/run" class="hover:text-accent-400 transition-colors">Execution Lab</a></li>
-            <li><a href="/user-manual" class="hover:text-accent-400 transition-colors">User Manual</a></li>
-            <li><a href="https://github.com/KirikPapka/quantfin_exeter" target="_blank" rel="noopener noreferrer" class="hover:text-accent-400 transition-colors">GitHub</a></li>
+            <li><a href="/" class="hover:text-brand-400 transition-colors">Home</a></li>
+            <li><a href="/case-study" class="hover:text-brand-400 transition-colors">Case Study</a></li>
+            <li><a href="/run" class="hover:text-brand-400 transition-colors">Execution Lab</a></li>
+            <li><a href="/user-manual" class="hover:text-brand-400 transition-colors">User Manual</a></li>
+            <li><a href="https://github.com/KirikPapka/quantfin_exeter" target="_blank" rel="noopener noreferrer" class="hover:text-brand-400 transition-colors">GitHub</a></li>
           </ul>
         </div>
         <div>
           <h4 class="font-semibold text-white mb-4 text-sm uppercase tracking-wider">QuantFin Society</h4>
           <p class="text-sm leading-relaxed">CFA Institute AI Investment Challenge<br />2nd place, national final — 2026</p>
           <p class="text-sm mt-3">Team 18 &middot; University of Exeter</p>
-          <a href="https://quantfin.dev" target="_blank" rel="noopener noreferrer" class="inline-block text-sm mt-3 text-accent-400 hover:text-accent-300 transition-colors">quantfin.dev &rarr;</a>
+          <a href="https://quantfin.dev" target="_blank" rel="noopener noreferrer" class="inline-block text-sm mt-3 text-brand-400 hover:text-brand-300 transition-colors">quantfin.dev &rarr;</a>
         </div>
       </div>
       <div class="border-t border-white/10 mt-12 pt-8 text-center text-sm text-navy-500">

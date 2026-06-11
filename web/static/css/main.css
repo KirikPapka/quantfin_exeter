@@ -24,7 +24,7 @@ body.site-shell {
   min-height: 100dvh;
   position: relative;
   background:
-    radial-gradient(120% 70% at 0% -20%, rgba(255, 122, 26, 0.06) 0%, transparent 55%),
+    radial-gradient(120% 70% at 0% -20%, rgba(50, 130, 184, 0.08) 0%, transparent 55%),
     radial-gradient(120% 70% at 100% 0%, rgba(95, 208, 255, 0.06) 0%, transparent 50%),
     var(--qf-bg);
   color: var(--qf-ink);
@@ -144,7 +144,7 @@ h4 {
   inset: -30% -10% -15% -10%;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 56% 38% at 20% 80%, rgba(255, 122, 26, 0.14) 0%, transparent 66%),
+    radial-gradient(ellipse 56% 38% at 20% 80%, rgba(95, 208, 255, 0.1) 0%, transparent 66%),
     radial-gradient(ellipse 50% 34% at 86% 24%, rgba(95, 208, 255, 0.14) 0%, transparent 68%);
   animation: hero-shift 9s ease-in-out infinite alternate;
 }
@@ -193,7 +193,7 @@ h4 {
   transform: translateY(-5px);
   background: var(--qf-surface-2);
   box-shadow: var(--qf-shadow);
-  border-color: rgba(255, 122, 26, 0.45);
+  border-color: rgba(95, 208, 255, 0.45);
 }
 
 .approach-card .card-icon {
@@ -236,7 +236,7 @@ h4 {
   left: calc(50% + 33px);
   right: calc(-50% + 33px);
   height: 2px;
-  background: linear-gradient(90deg, #ff7a1a 0%, #c75e0f 100%);
+  background: linear-gradient(90deg, #5fd0ff 0%, #3282b8 100%);
   z-index: 0;
 }
 
@@ -247,7 +247,7 @@ h4 {
   top: -4px;
   width: 0;
   height: 0;
-  border-left: 8px solid #c75e0f;
+  border-left: 8px solid #3282b8;
   border-top: 5px solid transparent;
   border-bottom: 5px solid transparent;
 }
@@ -271,7 +271,7 @@ h4 {
   width: 180px;
   height: 180px;
   border-radius: 999px;
-  background: rgba(255, 122, 26, 0.12);
+  background: rgba(95, 208, 255, 0.1);
 }
 
 /* ===== Case Study ===== */
@@ -287,7 +287,7 @@ h4 {
   width: 42px;
   height: 42px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #ff9a4d, #ff7a1a);
+  background: linear-gradient(135deg, #5fd0ff, #3282b8);
   color: #051528;
   font-weight: 700;
   font-size: 1.05rem;
@@ -295,14 +295,14 @@ h4 {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 8px 16px rgba(255, 122, 26, 0.28);
+  box-shadow: 0 8px 16px rgba(50, 130, 184, 0.3);
 }
 
 .governance-box {
   position: relative;
   background: var(--qf-surface);
   border: 1px solid var(--qf-line);
-  border-left: 4px solid var(--qf-accent);
+  border-left: 4px solid var(--qf-brand-2);
   border-radius: 0 14px 14px 0;
   padding: 1.25rem 1.5rem;
   line-height: 1.75;
@@ -316,7 +316,7 @@ h4 {
   left: 0.55rem;
   font-size: 2rem;
   line-height: 1;
-  color: rgba(255, 122, 26, 0.35);
+  color: rgba(95, 208, 255, 0.35);
 }
 
 /* ===== Run Page ===== */
@@ -356,8 +356,8 @@ h4 {
 .config-select:focus,
 .config-input:focus {
   outline: none;
-  border-color: var(--qf-accent);
-  box-shadow: 0 0 0 3px rgba(255, 122, 26, 0.18);
+  border-color: var(--qf-brand-2);
+  box-shadow: 0 0 0 3px rgba(95, 208, 255, 0.16);
 }
 
 .btn-primary {
@@ -510,7 +510,7 @@ h4 {
 }
 
 .bench-table tbody tr:hover td {
-  background: rgba(255, 122, 26, 0.06);
+  background: rgba(95, 208, 255, 0.05);
 }
 
 .bench-table tbody tr.rl-row td {

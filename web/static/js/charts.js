@@ -27,7 +27,7 @@ const QF_LAYOUT = {
   xaxis:     { gridcolor: 'rgba(255,255,255,0.08)', linecolor: 'rgba(255,255,255,0.14)', zeroline: false },
   yaxis:     { gridcolor: 'rgba(255,255,255,0.08)', linecolor: 'rgba(255,255,255,0.14)', zeroline: false },
   hoverlabel:{ bgcolor: '#0e1530', font: { color: '#e9edf5', size: 12 } },
-  modebar:   { bgcolor: 'transparent', color: '#7a8499', activecolor: '#ff7a1a' },
+  modebar:   { bgcolor: 'transparent', color: '#7a8499', activecolor: '#5fd0ff' },
 };
 
 const REGIME_FILLS = [QF_COLORS.calm, QF_COLORS.vol, QF_COLORS.stressed];
