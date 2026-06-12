@@ -2,7 +2,7 @@
 
 **University of Exeter · Team 18**
 
-| Kirill Papka | Thomas Nguyen | Harrison Maxwell | Maksim Kitikov (lead) |
+| Kirill Papka | Thomas Nguyen | Harrison Maxwell | Maksim Kitikov |
 |---|---|---|---|
 
 > Institutional **optimal trade execution** using **regime-aware reinforcement learning** (PPO), **classical benchmarks** (TWAP / VWAP / Almgren–Chriss / Immediate), **NASDAQ ITCH order-book imbalance**, and an **LLM governance** layer (Anthropic Claude, cached for reproducibility).
